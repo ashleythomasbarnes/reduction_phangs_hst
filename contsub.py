@@ -6,6 +6,7 @@ import numpy as np
 from astropy.io import fits
 import os
 
+
 def perform_continuum_subtraction_onecont(hdu_halpha, hdu_cont1, halpha_outputfilename, cont_outputfilename):
     """
     Perform continuum subtraction on a single emission line image using one continuum image.
@@ -146,11 +147,18 @@ def continuum_subtraction(halpha_inputfilename, cont1_inputfilename, halpha_outp
         hdu_halpha = hdus_halpha[0].copy() if hdus_halpha[0].data is not None else hdus_halpha[1].copy()
         hdu_cont1 = hdus_cont1[0].copy() if hdus_cont1[0].data is not None else hdus_cont1[1].copy()
 
+        # Remove 0 padding with nans
+        hdu_halpha.data[hdu_halpha.data == 0] = np.nan
+        hdu_cont1.data[hdu_cont1.data == 0] = np.nan
+
     # Open halpha and second continuum files
     if cont2_inputfilename is not None:
         print(f'[INFO] Loading Continuum 2: {cont2_inputfilename}')
         with fits.open(cont2_inputfilename) as hdus_cont2:
             hdu_cont2 = hdus_cont2[0].copy() if hdus_cont2[0].data is not None else hdus_cont2[1].copy()
+
+            # Remove 0 padding with nans
+            hdu_cont2.data[hdu_cont2.data == 0] = np.nan
 
     # Perform continuum subtraction
     if cont2_inputfilename is None:
