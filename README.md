@@ -93,36 +93,48 @@ Remember that this script is specific to the data and tasks involved in this par
 
 ## Prerequisites
 
-- Python 3
-- `reduction_phangs_hst` package
-- `astropy` package
-- `warnings` package
+You need to have Python and the following libraries installed to use this script:
+- `os`
+- `astropy`
+- `warnings`
+- `reduction_phangs_hst`
 
 ## Usage
 
-1. Update the user inputs section in the code with the desired values for the following variables:
-   - `galaxy`: Define the galaxy name.
-   - `halpha_inputfilename`: Path to the H-alpha input file.
-   - `cont2_inputfilename`: Path to the second continuum input file.
-   - `cont1_inputfilename`: Path to the first continuum input file.
-   - `input_muse_filename`: Path to the MUSE input file.
+The script can be used as follows:
 
-2. Run the code.
+1. Update the user-defined variables to match your specific requirements. The variables that need to be changed are: `galaxy`, `halpha_inputfilename`, `cont2_inputfilename`, `cont1_inputfilename`, `input_muse_filename`. The meanings of these variables are as follows:
 
-## Output
+   - `galaxy` - Define the galaxy of interest.
+   - `halpha_inputfilename` - Define the input file for the h-alpha image.
+   - `cont2_inputfilename` - Define the second continuum file for subtraction.
+   - `cont1_inputfilename` - Define the first continuum file for subtraction.
+   - `input_muse_filename` - Define the input file for MUSE observations.
+
+2. Run the script. This will carry out the continuum subtraction, create a raw image, carry out the post-processing steps on the raw image, and save the processed image.
+
+## Outputs
 
 The code generates the following output files in the specified output directory:
+
 - Continuum-subtracted H-alpha image: `{output_dir}/{galaxy}_halpha_raw.fits`
 - Scaled continuum image: `{output_dir}/{galaxy}_cont_raw.fits`
-- Processed H-alpha unit image: `{output_dir}/{galaxy}_halpha.fits`
+- Processed H-alpha unit image: `{halpha_filename.replace('_raw.fits', '.fits')}`
+- Background subtracted H-alpha image: `{halpha_filename}`
 - Processed H-alpha MUSE image: `{output_dir}/{galaxy}_musehalpha.fits`
 - Regridded MUSE image: `{output_dir}/{galaxy}_musehalpha_regrid.fits`
-- Smoothed HST image: `{halpha_filename.replace('_raw.fits', '_smoothed.fits')}`
-- Ratio image: `{output_dir}/{galaxy}_hstmuseratio.fits`
-- Anchored HST image: `{output_dir}/{galaxy}_anchored.fits`
-- Anchored HST image with intensity negations: `{output_dir}/{galaxy}_anchored_intnegs.fits`
-- Anchored HST image with added white noise: `{output_dir}/{galaxy}_anchored_wnoise.fits`
-- Anchored HST image with intensity negations and added white noise: `{output_dir}/{galaxy}_anchored_intnegs_wnoise.fits`
+- Smoothed HST image: `{halpha_filename.replace('_raw.fits', '_bgsub_smoothed.fits')}`
+- Difference image: `{halpha_filename.replace('_raw.fits', '_bgsub_diff.fits')}`
+- Ratio image: `{halpha_filename.replace('_raw.fits', '_bgsub_ratio.fits')}`
+- Anchored difference image: `{halpha_filename.replace('_raw.fits', '_bgsub_diff_anchored.fits')}`
+- Anchored ratio image: `{halpha_filename.replace('_raw.fits', '_bgsub_ratio_anchored.fits')}`
+- Anchored difference image with intensity negations: `{halpha_filename.replace('_raw.fits', '_bgsub_diff_anchored_intnegs.fits')}`
+- Anchored ratio image with intensity negations: `{halpha_filename.replace('_raw.fits', '_bgsub_ratio_anchored_intnegs.fits')}`
+- Fit anchored image: `{halpha_filename.replace('_raw.fits', '_bgsub_fit_anchored.fits')}`
+- Fit anchored image with intensity negations: `{halpha_filename.replace('_raw.fits', '_bgsub_fit_anchored_intnegs.fits')}`
+- Fit anchored image with intensity negations and no cosmic rays: `{halpha_filename.replace('_raw.fits', '_bgsub_fit_anchored_intnegs_nocosmic.fits')}`
+
+Note: If the cosmic ray finder functionality is uncommented, additional outputs that include cosmic ray processed images would be generated.
 
 ## Code 2: QA Analysis
 
