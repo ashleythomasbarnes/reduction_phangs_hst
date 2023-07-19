@@ -9,7 +9,14 @@ import numpy as np
 from radio_beam import Beam
 from scipy.ndimage.morphology import binary_dilation
 from reproject import reproject_interp
+from matplotlib import pyplot as plt
 
+from astropy.stats import SigmaClip
+from photutils.segmentation import detect_threshold, detect_sources
+from photutils.utils import circular_footprint
+from photutils.background import Background2D
+import numpy as np
+from astropy.io import fits
 
 def process_halpha_units(input_filename, output_filename):
     """
@@ -22,7 +29,7 @@ def process_halpha_units(input_filename, output_filename):
     Returns:
         astropy.io.fits.ImageHDU: Processed Halpha FITS image HDU.
     """
-    print(f"Processing {input_filename}")
+    print(f"[INFO] Processing {input_filename}")
 
     # Open the input FITS file and get the primary HDU
     hdu_hst = fits.open(input_filename)[0]
@@ -32,22 +39,108 @@ def process_halpha_units(input_filename, output_filename):
     photplam = hdu_hst.header['PHOTPLAM']
     photbw = hdu_hst.header['PHOTBW']
 
-    print("Scaling the data...")
+    print("[INFO] Scaling the data...")
     # Scale the data using photflam and photbw
     hdu_hst.data = hdu_hst.data * photflam * photbw
 
     # Update the BUNIT header keyword to indicate the new units
     hdu_hst.header['BUNIT'] = ('erg/s/cm2', '1e-20 erg/s/cm2')
 
-    print("Converting units...")
+    print("[INFO] Converting units...")
     # Convert the data units to erg/s/cm^2
     hdu_hst.data = hdu_hst.data * 1e20
 
-    print(f"Saving the processed FITS file as {output_filename}")
+    print(f"[INFO] Saving the processed FITS file as {output_filename}")
     # Save the processed FITS file
     hdu_hst.writeto(output_filename, overwrite=True)
 
     return hdu_hst
+
+
+def process_halpha_background(hdu_hst, halpha_filename, sigma_clip_sigma=3.0, detect_threshold_nsigma=2.0, 
+                        detect_sources_npixels=10, footprint_radius=10, box_size=(100, 100), filter_size=(51, 51), 
+                        exclude_percentile=95, fill_value=0.0):
+    '''
+    Function to subtract the background from a FITS file and write the output and the background to new FITS files.
+    
+    Parameters:
+    hdu_hst: HDUList
+        Input HDUList from which the background is to be subtracted.
+    halpha_filename: str
+        The original filename of the file containing hdu_hst. This is used to generate the filenames for the output files.
+    
+    Optional Parameters:
+    sigma_clip_sigma: float (default=3.0)
+        The number of standard deviations to use for the sigma clipping threshold.
+    detect_threshold_nsigma: float (default=2.0)
+        The number of standard deviations above the background for a pixel to be considered a source.
+    detect_sources_npixels: int (default=10)
+        The number of connected pixels that an object needs to have to be considered a source.
+    footprint_radius: int (default=10)
+        The radius of the circular footprint to use for the source detection.
+    box_size: tuple (default=(100, 100))
+        The size of the box to use for the background estimation.
+    filter_size: tuple (default=(51, 51))
+        The size of the box to use for the background smoothing.
+    exclude_percentile: float (default=95)
+        Exclude sources from the background estimation that have values in the top percentile.
+    fill_value: float (default=0.0)
+        The value to use for pixels that are masked or outside of the image.
+
+    Returns: None
+    '''
+
+    # Extracting the data from the hdu object
+    data = hdu_hst.data
+
+    # Defining the sigma clipping parameters
+    sigma_clip = SigmaClip(sigma=sigma_clip_sigma, maxiters=10)
+
+    # Calculating the detection threshold for the data
+    threshold = detect_threshold(data, nsigma=detect_threshold_nsigma, sigma_clip=sigma_clip)
+
+    # Detecting sources in the data above the threshold
+    segment_img = detect_sources(data, threshold, npixels=detect_sources_npixels)
+
+    # Creating a circular footprint for source detection
+    footprint = circular_footprint(radius=footprint_radius)
+
+    # Making a source mask using the footprint
+    mask = segment_img.make_source_mask(footprint=footprint)
+
+    # Creating a coverage mask to handle NaN values
+    coverage_mask = ~np.isnan(data)
+
+    # Creating a background estimator
+    bkg = Background2D(data, box_size=box_size, filter_size=filter_size, mask=mask, 
+                       exclude_percentile=exclude_percentile, fill_value=fill_value)
+
+    # Getting the estimated background and subtracting it from the data
+    data_bg = bkg.background
+    data_bgsub = data - data_bg
+
+    # Create a mask where True values represent NaN values in the original data
+    mask = np.isnan(data)
+
+    # Apply the mask to the background data, replacing detected positions (True) with NaNs
+    data_bg[mask] = np.nan
+    
+    # Creating copies of the hdu object
+    hdu_hst_bg = hdu_hst.copy()
+    hdu_hst_bgsub = hdu_hst.copy()
+
+    # Replacing the data in the copied hdu objects with the background and the background subtracted data
+    hdu_hst_bg.data = data_bg
+    hdu_hst_bgsub.data = data_bgsub
+
+    # Defining the output filenames and writing the output to the files
+    output_filename = halpha_filename.replace('_raw.fits', '_bg.fits')
+    hdu_hst_bg.writeto(output_filename, overwrite=True)
+
+    output_filename = halpha_filename.replace('_raw.fits', '_bgsub.fits')
+    hdu_hst_bgsub.writeto(output_filename, overwrite=True)
+    
+    return(hdu_hst_bgsub)
 
 
 def process_halpha_muse(input_muse_filename, output_muse_filename):
@@ -212,7 +305,38 @@ def smooth_image_with_beam(input_hdu, initial_resolution, desired_resolution, ou
     return output_hdu
 
 
-def save_ratio_smoothed_image(hdu_muse_regrid, hdu_hst, hdu_hst_smoothed, output_ratio_filename, output_anchored_filename):
+def scale_data_2D(data):
+    '''
+    Function to scale 2D data to the range [0, 1], ignoring NaN values.
+    
+    Parameters:
+    data : ndarray
+        The 2D array to be scaled.
+    
+    Returns:
+    scaled_data : ndarray
+        The scaled 2D array.
+    '''
+    # Define a mask for NaN values
+    mask = np.isnan(data)
+    
+    # Get the minimum and maximum values from the data, ignoring NaNs
+    data_min = np.nanmin(data)
+    data_max = np.nanmax(data)
+    
+    # Create a copy of the data to avoid modifying the input array
+    scaled_data = data.copy()
+    
+    # Scale the data using the min and max, applying the mask to ignore NaNs
+    scaled_data[~mask] = (data[~mask] - data_min) / (data_max - data_min)
+    
+    # Preserve the NaNs in the scaled data
+    scaled_data[mask] = np.nan
+
+    return scaled_data
+
+
+def save_diff_ratio_smoothed_image(hdu_muse_regrid, hdu_hst, hdu_hst_smoothed, output_ratio_filename, output_diff_filename, output_ratio_anchored_filename, output_diff_anchored_filename):
     """
     Calculates the ratio of a MUSE regridded image to a smoothed HST image,
     saves the ratio image and the anchored HST image as FITS files.
@@ -227,30 +351,54 @@ def save_ratio_smoothed_image(hdu_muse_regrid, hdu_hst, hdu_hst_smoothed, output
     Returns:
         Tuple: Contains the ratio smoothed image HDU and the anchored HST image HDU.
     """
+
     # Calculate the ratio of the MUSE regridded image to the smoothed HST image
-    ratio_smooth = hdu_muse_regrid.data / hdu_hst_smoothed.data
+    # ratio_smooth = hdu_muse_regrid.data / hdu_hst_smoothed.data
+    
+    # Scale data for ratio between 0 and 1
+    data_hst_scaled = scale_data_2D(hdu_hst_smoothed.data) 
+    data_muse_scaled = scale_data_2D(hdu_muse_regrid.data)
+    
+    # Ratio will not work without - needs to be fixed
+    scale_factor = np.abs(np.nanpercentile(hdu_hst.data, 0.1))
+
+    ratio_smooth = hdu_muse_regrid.data/(hdu_hst_smoothed.data+scale_factor)
+    # ratio_smooth = data_muse_scaled/data_hst_scaled
+
+    diff_smooth = hdu_muse_regrid.data - hdu_hst_smoothed.data
 
     # Create a copy of the smoothed HST image HDU and update its data with the ratio
     hdu_ratio_smooth = hdu_hst_smoothed.copy()
+    hdu_diff_smooth = hdu_hst_smoothed.copy()
+
     hdu_ratio_smooth.data = ratio_smooth
+    hdu_diff_smooth.data = diff_smooth
 
     # Save the ratio smoothed image to the output file
     hdu_ratio_smooth.writeto(output_ratio_filename, overwrite=True)
+    hdu_diff_smooth.writeto(output_diff_filename, overwrite=True)
+
     print(f"[INFO] Ratio smoothed image saved as {output_ratio_filename}")
+    print(f"[INFO] Diff smoothed image saved as {output_diff_filename}")
 
     # Create a copy of the HST image HDU and update its data with the anchored values using the ratio
-    hdu_hst_anchored = hdu_hst.copy()
-    hdu_hst_anchored.data = hdu_hst.data * ratio_smooth
+    hdu_hst_ratio_anchored = hdu_hst.copy()
+    hdu_hst_diff_anchored = hdu_hst.copy()
+
+    hdu_hst_ratio_anchored.data = (hdu_hst.data+scale_factor) * ratio_smooth
+    hdu_hst_diff_anchored.data = hdu_hst.data + diff_smooth
 
     # Save the anchored HST image to the output file
-    hdu_hst_anchored.writeto(output_anchored_filename, overwrite=True)
-    print(f"[INFO] Anchored HST image saved as {output_anchored_filename}")
+    hdu_hst_ratio_anchored.writeto(output_ratio_anchored_filename, overwrite=True)
+    hdu_hst_diff_anchored.writeto(output_diff_anchored_filename, overwrite=True)
 
-    return hdu_ratio_smooth, hdu_hst_anchored
+    print(f"[INFO] Anchored HST image saved as {output_ratio_anchored_filename}")
+    print(f"[INFO] Anchored HST image saved as {output_diff_anchored_filename}")
+
+    return hdu_ratio_smooth, hdu_diff_smooth, hdu_hst_ratio_anchored, hdu_hst_diff_anchored
 
 
-
-def process_anchored_image(hdu_hst_anchored, output_filename):
+def process_intnegs_anchored_image(hdu_hst_anchored, output_filename):
     """
     Process the anchored HST image by replacing negative values with NaNs and
     performing interpolation using Gaussian kernels.
@@ -267,6 +415,91 @@ def process_anchored_image(hdu_hst_anchored, output_filename):
 
     # Replace negative values with NaNs
     mask = hdu_hst_anchored_intnegs.data <= 0
+    mask = binary_dilation(mask, iterations=2)
+    hdu_hst_anchored_intnegs.data[mask] = np.nan
+
+    # Perform interpolation using Gaussian kernels
+    kernel = Gaussian2DKernel(x_stddev=1)
+    hdu_hst_anchored_intnegs.data = interpolate_replace_nans(hdu_hst_anchored_intnegs.data, kernel)
+    hdu_hst_anchored_intnegs.data = interpolate_replace_nans(hdu_hst_anchored_intnegs.data, kernel)
+
+    # Save the processed anchored HST image to the output file
+    hdu_hst_anchored_intnegs.writeto(output_filename, overwrite=True)
+    print(f"[INFO] Anchored HST image with negative values processed and saved as {output_filename}")
+
+    return hdu_hst_anchored_intnegs
+
+
+def create_2d_hist_and_fit(hdu_input1, hdu_input2, hdu_input3, output_filename, showplot=False):
+    '''
+    This function creates a 2D histogram from two input HDUs (Header Data Unit). 
+    It then fits a line to the data and applies the fitted line to modify the 
+    second HDU. The modified HDU is then written to a new FITS file.
+
+    Parameters:
+    hdu_input1: astropy.io.fits.hdu.image.PrimaryHDU
+        The first input HDU - hdu_muse_regrid
+    hdu_input2: astropy.io.fits.hdu.image.PrimaryHDU
+        The second input HDU - hdu_hst_smoothed
+    hdu_input3: astropy.io.fits.hdu.image.PrimaryHDU
+        The third input HDU which will be modified by the function.
+    output_filename: str
+        The name of the output FITS file to which the modified HDU will be written.
+
+    Returns:
+    hdu_fit_anchored: astropy.io.fits.hdu.image.PrimaryHDU
+        The second input HDU modified by the line of best fit.
+    '''
+
+    # Filter out NaN values from the data
+    valid_indices = np.isfinite(hdu_input1.data) & np.isfinite(hdu_input2.data)
+    x_data = hdu_input1.data[valid_indices]
+    y_data = hdu_input2.data[valid_indices]
+
+    # Calculate a line of best fit for the data
+    slope, intercept = np.polyfit(x_data, y_data, 1)
+    x_fit = np.linspace(np.min(x_data), np.max(x_data), 100)
+    y_fit = slope * x_fit + intercept
+
+    if showplot: 
+        # Create a 2D histogram plot using the filtered data
+        fig, ax = plt.subplots(figsize=(8, 8))
+        hist = ax.hist2d(x_data, y_data, bins=50, cmap='turbo', norm=LogNorm())
+        cbar = plt.colorbar(hist[3], ax=ax, label='Counts')
+        ax.set_xlabel('Input1 Data')
+        ax.set_ylabel('Input2 Data')
+        ax.set_title('2D Histogram Plot')
+        ax.plot(x_fit, y_fit, color='red', linewidth=2, label=f'y = {slope:.2f}x + {intercept:.2f}')
+        ax.legend()
+
+    # Apply the calculated line of best fit to the second input data and save it as a new FITS file
+    hdu_fit_anchored = hdu_input3.copy()
+    hdu_fit_anchored.data = (hdu_fit_anchored.data - intercept) / slope
+    hdu_fit_anchored.writeto(output_filename, overwrite=True)
+
+    # Return the modified HDU object
+    return(hdu_fit_anchored)
+
+
+def process_anchored_fit_image(hdu_hst_anchored, output_filename, sigma=5):
+    """
+    Process the anchored HST image by replacing negative values with NaNs and
+    performing interpolation using Gaussian kernels.
+
+    Args:
+        hdu_hst_anchored (astropy.io.fits.ImageHDU): Anchored HST image HDU.
+        output_filename (str): Filename for the processed anchored HST image.
+
+    Returns:
+        astropy.io.fits.ImageHDU: Processed anchored HST image HDU.
+    """
+    # Create a copy of the anchored HST image HDU
+    hdu_hst_anchored_intnegs = hdu_hst_anchored.copy()
+
+    # Replace negative values with NaNs
+    mask = hdu_hst_anchored_intnegs.data <= 0
+    std = mad_std(hdu_hst_anchored_intnegs.data[mask], ignore_nan=True)
+    mask = hdu_hst_anchored_intnegs.data <= -std*sigma
     mask = binary_dilation(mask, iterations=2)
     hdu_hst_anchored_intnegs.data[mask] = np.nan
 

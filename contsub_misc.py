@@ -1,5 +1,6 @@
 import os 
 import re
+import shutil
 
 
 def extract_substring(string, pattern=r'f\w+w'):
@@ -20,6 +21,31 @@ def extract_substring(string, pattern=r'f\w+w'):
         return None
 
 
+def remove_directory(dir_path, safety=True):
+    """
+    Removes a directory if it exists.
+
+    Parameters:
+    dir_path: str
+        Path to the directory to be removed.
+
+    Returns:
+    None
+    """
+    # Check if the directory exists
+
+    if safety: 
+        reutrn()
+
+    if os.path.exists(dir_path):
+        print("[INFO] The directory exists. Removing the directory.")
+        
+        # Remove the directory
+        shutil.rmtree(dir_path)
+    else:
+        print("[INFO] The directory does not exist. Nothing to remove.")
+
+
 def create_directory(directory):
     """
     Check if a directory exists and create it if it doesn't.
@@ -32,6 +58,6 @@ def create_directory(directory):
     """
     if not os.path.exists(directory):
         os.makedirs(directory)
-        print(f"Directory '{directory}' created successfully.")
+        print(f"[INFO] Directory '{directory}' created successfully.")
     else:
-        print(f"Directory '{directory}' already exists.")
+        print(f"[INFO] Directory '{directory}' already exists.")

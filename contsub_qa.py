@@ -8,6 +8,7 @@ from tqdm import tqdm
 from astropy.io import fits
 from reproject import reproject_interp
 
+plt.style.use('paper.mplstyle')
 
 def process_muse_catalouge(input_nebulae_catalog_filename, galaxy):
     """
@@ -128,25 +129,59 @@ def plot_fits_data(fits_dict, galaxy):
     ax3 = aplpy.FITSFigure(fits_dict['halpha_smoothed'], subplot=(1, 4, 3), figure=fig)
     ax4 = aplpy.FITSFigure(fits_dict['halpha_hstmuseratio'], subplot=(1, 4, 4), figure=fig)
 
-    vmin, vmax = np.nanpercentile(fits_dict['musehalpha_regrid'].data, (2, 99))
+    vmin, vmax = np.nanpercentile(fits_dict['halpha_smoothed'].data, (2, 99))
     ax1.show_colorscale(vmin=vmin, vmax=vmax, cmap='magma', stretch='log')
     ax2.show_colorscale(vmin=vmin, vmax=vmax, cmap='magma', stretch='log')
     ax3.show_colorscale(vmin=vmin, vmax=vmax, cmap='magma', stretch='log')
-    ax4.show_colorscale(vmin=np.nanmin(fits_dict['halpha_hstmuseratio'].data),
-                        vmax=np.nanmax(fits_dict['halpha_hstmuseratio'].data),
-                        cmap='turbo')
+    vmin, vmax = np.nanpercentile(fits_dict['halpha_hstmuseratio'].data, (2, 99))
+    ax4.show_colorscale(vmin=vmin, vmax=vmax, cmap='turbo')
 
     for ax in [ax1, ax2, ax3, ax4]:
         ax.recenter(24.1721149, 15.7806457, 0.0333138)
         ax.axis_labels.hide()
         ax.tick_labels.hide()
 
-    ax4.add_colorbar()
+    ax1.add_colorbar(location='top', axis_label_text='MUSE Intensity')
+    ax2.add_colorbar(location='top', axis_label_text='HST Intensity')
+    ax3.add_colorbar(location='top', axis_label_text='HST smoothed Int.')
+    ax4.add_colorbar(location='top', axis_label_text='Ratio (MUSE/HST)')
+
     fig.tight_layout()
-    fig.savefig('./qa/%s_halpha_hstmuse_fluxcomp.pdf' % galaxy, dpi=300, bbox_inches='tight')
+    fig.savefig('./qa/%s_halpha_hstmuse_fluxcomp_matchedcolor.pdf' % galaxy, dpi=300, bbox_inches='tight')
+    fig.savefig('./qa/%s_halpha_hstmuse_fluxcomp_matchedcolor.png' % galaxy, dpi=300, bbox_inches='tight')
     plt.close('all')
 
-    return(None)
+    fig = plt.figure(figsize=(12, 5))
+
+    ax1 = aplpy.FITSFigure(fits_dict['musehalpha_regrid'], subplot=(1, 4, 1), figure=fig)
+    ax2 = aplpy.FITSFigure(fits_dict['halpha'], subplot=(1, 4, 2), figure=fig)
+    ax3 = aplpy.FITSFigure(fits_dict['halpha_smoothed'], subplot=(1, 4, 3), figure=fig)
+    ax4 = aplpy.FITSFigure(fits_dict['halpha_hstmuseratio'], subplot=(1, 4, 4), figure=fig)
+
+    vmin, vmax = np.nanpercentile(fits_dict['musehalpha_regrid'].data, (2, 99))
+    ax1.show_colorscale(vmin=vmin, vmax=vmax, cmap='magma', stretch='log')
+    vmin, vmax = np.nanpercentile(fits_dict['halpha_smoothed'].data, (2, 99))
+    ax2.show_colorscale(vmin=vmin, vmax=vmax, cmap='magma', stretch='log')
+    ax3.show_colorscale(vmin=vmin, vmax=vmax, cmap='magma', stretch='log')
+    vmin, vmax = np.nanpercentile(fits_dict['halpha_hstmuseratio'].data, (2, 99))
+    ax4.show_colorscale(vmin=vmin, vmax=vmax, cmap='turbo')
+
+    for ax in [ax1, ax2, ax3, ax4]:
+        ax.recenter(24.1721149, 15.7806457, 0.0333138)
+        ax.axis_labels.hide()
+        ax.tick_labels.hide()
+
+    ax1.add_colorbar(location='top', axis_label_text='MUSE Intensity')
+    ax2.add_colorbar(location='top', axis_label_text='HST Intensity')
+    ax3.add_colorbar(location='top', axis_label_text='HST smoothed Int.')
+    ax4.add_colorbar(location='top', axis_label_text='Ratio (MUSE/HST)')
+
+    fig.tight_layout()
+    fig.savefig('./qa/%s_halpha_hstmuse_fluxcomp.pdf' % galaxy, dpi=300, bbox_inches='tight')
+    fig.savefig('./qa/%s_halpha_hstmuse_fluxcomp.png' % galaxy, dpi=300, bbox_inches='tight')
+    plt.close('all')
+
+    return None
 
 
 def plot_flux_comparison(flux_muse, flux_hst, flux_hst_anchored, galaxy):
@@ -207,6 +242,7 @@ def plot_flux_comparison(flux_muse, flux_hst, flux_hst_anchored, galaxy):
     ax2.set_ylabel('HST anchored flux, (erg/s/cm2)')
 
     fig.savefig(f'./qa/{galaxy}_flux_musehstcomp.pdf', dpi=300, bbox_inches='tight')
+    fig.savefig(f'./qa/{galaxy}_flux_musehstcomp.png', dpi=300, bbox_inches='tight')
     plt.close('all')
 
     return(None)
