@@ -17,6 +17,7 @@ from photutils.utils import circular_footprint
 from photutils.background import Background2D
 import numpy as np
 from astropy.io import fits
+from matplotlib import colors 
 
 def process_halpha_units(input_filename, output_filename):
     """
@@ -290,7 +291,7 @@ def smooth_image_with_beam(input_hdu, initial_resolution, desired_resolution, ou
 
     # Convolve the image with the kernel to smooth it
     print("[INFO] Performing image convolution...")
-    smoothed_data = convolve_fft(input_hdu.data, convolution_kernel, preserve_nan=True)
+    smoothed_data = convolve_fft(input_hdu.data, convolution_kernel, preserve_nan=True, allow_huge=True)
     print("[INFO] Image convolution complete.")
 
     output_hdu = fits.PrimaryHDU(smoothed_data, input_hdu.header)
@@ -456,6 +457,12 @@ def create_2d_hist_and_fit(hdu_input1, hdu_input2, hdu_input3, output_filename, 
     x_data = hdu_input1.data[valid_indices]
     y_data = hdu_input2.data[valid_indices]
 
+    x_mask = ((x_data>np.nanpercentile(x_data,1)) & (x_data<np.nanpercentile(x_data,99)))
+    y_mask = ((y_data>np.nanpercentile(y_data,1)) & (y_data<np.nanpercentile(y_data,99)))
+
+    x_data = x_data[x_mask&y_mask]
+    y_data = y_data[x_mask&y_mask]
+
     # Calculate a line of best fit for the data
     slope, intercept = np.polyfit(x_data, y_data, 1)
     x_fit = np.linspace(np.min(x_data), np.max(x_data), 100)
@@ -464,13 +471,16 @@ def create_2d_hist_and_fit(hdu_input1, hdu_input2, hdu_input3, output_filename, 
     if showplot: 
         # Create a 2D histogram plot using the filtered data
         fig, ax = plt.subplots(figsize=(8, 8))
-        hist = ax.hist2d(x_data, y_data, bins=50, cmap='turbo', norm=LogNorm())
+        ax.set_aspect('equal')
+
+        hist = ax.hist2d(x_data, y_data, bins=50, cmap='turbo', norm=colors.LogNorm())
         cbar = plt.colorbar(hist[3], ax=ax, label='Counts')
         ax.set_xlabel('Input1 Data')
         ax.set_ylabel('Input2 Data')
         ax.set_title('2D Histogram Plot')
         ax.plot(x_fit, y_fit, color='red', linewidth=2, label=f'y = {slope:.2f}x + {intercept:.2f}')
         ax.legend()
+        ax.grid(True)
 
     # Apply the calculated line of best fit to the second input data and save it as a new FITS file
     hdu_fit_anchored = hdu_input3.copy()
