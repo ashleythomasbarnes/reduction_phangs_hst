@@ -16,6 +16,7 @@ from tqdm.auto import tqdm
 import gc
 import os 
 from astropy.io import fits
+import glob
 
 def cosmicray_finder(hdu):
 

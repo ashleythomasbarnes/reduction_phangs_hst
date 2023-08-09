@@ -3,6 +3,7 @@ from astropy.io import fits
 from astropy.convolution import Gaussian2DKernel, interpolate_replace_nans
 from scipy import ndimage
 import numpy as np
+import glob
 
 def load_mask(inputdir):
     filename = glob.glob('%s/*mask.fits' %inputdir)[0]
