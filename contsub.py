@@ -6,7 +6,6 @@ import numpy as np
 from astropy.io import fits
 import os
 
-
 def perform_continuum_subtraction_onecont(hdu_halpha, hdu_cont1, halpha_outputfilename, cont_outputfilename):
     """
     Perform continuum subtraction on a single emission line image using one continuum image.

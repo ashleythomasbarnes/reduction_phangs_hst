@@ -232,8 +232,16 @@ def subtract_intp_cut_data(hdu, source_positions, size_mask=3):
     
     return(hdu_int)
 
+def load_mask(inputdir):
+    filename = glob.glob('%s/*mask.fits' %inputdir)[0]
+    hdu = fits.open(filename)[0]
+    return(hdu.data==0) 
 
-def save(hdu, output_filename):
+def save_masked(hdu, output_filename):
+
+    mask = load_mask(os.path.dirname(output_filename))
+    hdu.data[mask] = np.nan
+
     hdu.writeto(output_filename, overwrite=True)
-    print(f"[INFO] Anchored HST image with negative values processed and saved as {output_filename}")
+    print(f"[INFO] Making and saved as {output_filename}")
     return()
