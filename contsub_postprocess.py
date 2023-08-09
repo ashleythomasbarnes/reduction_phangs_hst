@@ -275,7 +275,8 @@ def regrid(hdu_input, hdu_template, output_filename=None, conserve_flux=True):
 
     # Reproject the input image to match the template WCS
     print("[INFO] Performing image reprojection...")
-    data_output = reproject_interp(hdu_input, hdu_template.header, order=0, parallel=True)[0]
+    # data_output = reproject_interp(hdu_input, hdu_template.header, order=0, parallel=True)[0]
+    data_output = reproject_interp(hdu_input, hdu_template.header, order=0)[0]
     hdu_output = fits.PrimaryHDU(data_output, hdu_template.header)
     print("[INFO] Image reprojection complete.")
 
