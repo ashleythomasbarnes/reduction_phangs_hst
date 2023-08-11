@@ -34,7 +34,7 @@ def interpolate_masked(image_masked, x_stddev=1):
     return(image_interpolated)
 
 def cosmicray_finder_nnet(input_filename, output_filename, dilation_iterations=5, threshold=0.25,
-                          model_path='ACS-WFC-F606W-2-32'):
+                          model_path='/Users/abarnes/opt/anaconda3/lib/python3.9/site-packages/learned_models/mask/ACS-WFC-F606W.pth'):
     """
     Remove cosmic rays from a FITS image using the deepCR model and save the cleaned image to a specified output filename.
     
@@ -52,6 +52,10 @@ def cosmicray_finder_nnet(input_filename, output_filename, dilation_iterations=5
     # Load the FITS file and extract image data and header
     hdu = fits.open(input_filename)[0]
     image = hdu.data
+
+    # Look elsewhere for model 
+    if ~os.path.isfile(model_path):
+        model_path = '/lustre/opsw/work/abarnes/applications/anaconda3/lib/python3.11/site-packages/learned_models/mask/ACS-WFC-F606W.pth'
 
     # Create an instance of deepCR with specified model configuration
     mdl = deepCR(mask=model_path, device="CPU")
