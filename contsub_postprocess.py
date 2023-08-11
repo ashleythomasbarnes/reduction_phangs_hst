@@ -14,10 +14,10 @@ from astropy.stats import SigmaClip
 from photutils.segmentation import detect_threshold, detect_sources
 from photutils.utils import circular_footprint
 from photutils.background import Background2D
-import numpy as np
-from astropy.io import fits
 from matplotlib import colors 
 import glob
+from astropy.wcs import WCS
+import regions
 
 def get_mask(halpha_filename):
     """
@@ -182,6 +182,96 @@ def process_halpha_background(hdu_hst, halpha_filename, sigma_clip_sigma=3.0, de
     hdu_hst_bgsub.writeto(output_filename, overwrite=True)
     
     return(hdu_hst_bgsub)
+
+
+def mask_hdu_with_ds9(hdu, ds9_reg_file):
+    """
+    Mask the data in a FITS HDU with regions defined in a DS9 region file.
+
+    Parameters:
+    - hdu (HDU object): The HDU containing the data to be masked.
+    - ds9_reg_file (str): Path to the DS9 region file.
+
+    Returns:
+    - ndarray: The masked data array.
+    """
+
+    # Load the DS9 region
+    sky_regions = regions.read_ds9(ds9_reg_file)
+
+    # Convert sky regions to pixel regions
+    wcs = WCS(hdu.header)
+    pixel_regions = [r.to_pixel(wcs) for r in sky_regions]
+
+    # Initialize a mask of the same shape as the hdu data with all False
+    mask = np.zeros(hdu.data.shape, dtype=bool)
+
+    # For each region, create a mask and update the main mask
+    for reg in pixel_regions:
+        mask_reg = reg.to_mask()
+        mask |= mask_reg.to_image(hdu.data.shape)!=0
+
+    # Apply the mask
+    hdu_masked = hdu.copy()
+    hdu_masked.data[mask] = np.nan
+        
+    return hdu_masked, mask
+
+
+def smooth_hdu_gaussian(data, sigma_x=0.5, sigma_y=0.5):
+    """
+    Smooth a 2D HDU with a Gaussian kernel.
+
+    Parameters:
+    - hdu: The HDU object to be smoothed.
+    - sigma_x: Standard deviation of the Gaussian along the x-axis (in pixels).
+    - sigma_y: Standard deviation of the Gaussian along the y-axis (in pixels).
+
+    Returns:
+    - smoothed_hdu: The smoothed HDU.
+    """
+
+    # Create the Gaussian kernel
+    kernel = Gaussian2DKernel(sigma_x, sigma_y)
+
+    # Convolve the HDU data with the kernel
+    smoothed_data = convolve(data, kernel, normalize_kernel=True)
+
+    return smoothed_data
+
+def mask_stars(hdu, output_filename, region_filename='./starmask.reg', ):
+    """
+    Masks a FITS file using regions from a DS9 region file. The masked areas are replaced 
+    with noise computed from the unmasked data.
+
+    Parameters:
+    - input_filename (str): Path to the input FITS file.
+    - region_filename (str): Path to the DS9 region file.
+    - output_filename (str): Name of the output FITS file with masked regions replaced by noise.
+    
+    Returns:
+    - None, but writes a new FITS file with the masked regions replaced by noise.
+    """
+    
+    if os.path.isfile(region_filename):
+        
+        hdu_masked, mask = mask_hdu_with_ds9(hdu, region_filename)
+        
+        std = mad_std(hdu.data, ignore_nan=True)
+        mean = np.nanmean(hdu.data[hdu.data < std * 5])
+        noise = np.random.normal(mean, std * np.sqrt(2), hdu_masked.data.shape)
+        noise = smooth_hdu_gaussian(noise)  # Ensure you have the smooth_hdu_gaussian function defined elsewhere in your code
+        hdu_masked.data[mask] = noise[mask]
+        print(f"[INFO] Overwrite file {output_filename}...")
+        hdu_masked.writeto(output_filename, overwrite=True)
+
+        return(hdu_masked)
+
+    else:
+        print(f"[INFO] Region file {region_filename} not found.")
+        print(f"[INFO] {output_filename} will *not* have star mask")
+
+        return(hdu)
 
 
 def process_halpha_muse(input_muse_filename, output_muse_filename):
@@ -475,7 +565,7 @@ def process_intnegs_anchored_image(hdu_hst_anchored, output_filename):
     return hdu_hst_anchored_intnegs
 
 
-def create_2d_hist_and_fit(hdu_input1, hdu_input2, hdu_input3, output_filename, showplot=False):
+def create_2d_hist_and_fit(hdu_input1, hdu_input2, hdu_input3, output_filename, showplot=False, region_filename='./starmask.reg'):
     '''
     This function creates a 2D histogram from two input HDUs (Header Data Unit). 
     It then fits a line to the data and applies the fitted line to modify the 
@@ -497,12 +587,28 @@ def create_2d_hist_and_fit(hdu_input1, hdu_input2, hdu_input3, output_filename, 
     '''
 
     # Filter out NaN values from the data
+    
+    if os.path.isfile(region_filename):
+        
+        print(f"[INFO] Using star mask before making xy-fit")
+
+        hdu_input1, _ = mask_hdu_with_ds9(hdu_input1, region_filename)
+        hdu_input2, _ = mask_hdu_with_ds9(hdu_input2, region_filename)
+    else: 
+        print(f"[INFO] *No* star mask before making xy-fit")
+
     valid_indices = np.isfinite(hdu_input1.data) & np.isfinite(hdu_input2.data)
     x_data = hdu_input1.data[valid_indices]
     y_data = hdu_input2.data[valid_indices]
 
-    x_mask = ((x_data>np.nanpercentile(x_data,1)) & (x_data<np.nanpercentile(x_data,99)))
-    y_mask = ((y_data>np.nanpercentile(y_data,1)) & (y_data<np.nanpercentile(y_data,99)))
+    x_minmask, x_maxmask = np.nanpercentile(x_data,90), np.nanpercentile(x_data,99.99)
+    y_minmask, y_maxmask = np.nanpercentile(y_data,90), np.nanpercentile(y_data,99.99)
+    # x_minmask, x_maxmask = np.nanpercentile(x_data,0.1), np.nanpercentile(x_data,100)
+    # y_minmask, y_maxmask = np.nanpercentile(y_data,0.1), np.nanpercentile(y_data,100)
+    print(f"[INFO] MUSE mask lims: %0.1f %0.1f" %(x_minmask, x_maxmask))
+    print(f"[INFO] HST mask lims: %0.1f %0.1f" %(y_minmask, y_maxmask))
+    x_mask = ((x_data>x_minmask) & (x_data<x_maxmask))
+    y_mask = ((y_data>y_minmask) & (y_data<y_maxmask))
 
     x_data = x_data[x_mask&y_mask]
     y_data = y_data[x_mask&y_mask]
@@ -511,6 +617,7 @@ def create_2d_hist_and_fit(hdu_input1, hdu_input2, hdu_input3, output_filename, 
     slope, intercept = np.polyfit(x_data, y_data, 1)
     x_fit = np.linspace(np.min(x_data), np.max(x_data), 100)
     y_fit = slope * x_fit + intercept
+    print(f"[INFO] xy-fit --- slope: {slope}, intercept: {intercept}")
 
     if showplot: 
         # Create a 2D histogram plot using the filtered data
