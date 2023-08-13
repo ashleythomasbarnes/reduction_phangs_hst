@@ -561,7 +561,7 @@ def process_intnegs_anchored_image(hdu_hst_anchored, output_filename):
 
     # Save the processed anchored HST image to the output file
     hdu_hst_anchored_intnegs.writeto(output_filename, overwrite=True)
-    print(f"[INFO] Anchored HST image with negative values processed and saved as {output_filename}")
+    print(f"[INFO] Negative values (all < 0) processed and saved as {output_filename}")
 
     return hdu_hst_anchored_intnegs
 
@@ -675,7 +675,7 @@ def process_anchored_fit_image(hdu_hst_anchored, output_filename, sigma=5):
 
     # Save the processed anchored HST image to the output file
     hdu_hst_anchored_intnegs.writeto(output_filename, overwrite=True)
-    print(f"[INFO] Anchored HST image with negative values processed and saved as {output_filename}")
+    print(f"[INFO] Negative values (all < -5sigma) processed and saved as {output_filename}")
 
     return hdu_hst_anchored_intnegs
 

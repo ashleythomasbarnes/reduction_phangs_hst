@@ -34,7 +34,7 @@ def interpolate_masked(image_masked, x_stddev=1):
     
     return(image_interpolated)
 
-def cosmicray_finder_nnet(input_filename, output_filename, dilation_iterations=5, threshold=0.25,
+def cosmicray_finder_nnet(input_filename, output_filename, dilation_iterations=5, threshold=0.25, patch=1024,
                           model_path='/Users/abarnes/opt/anaconda3/lib/python3.9/site-packages/learned_models/mask/ACS-WFC-F606W.pth'):
     """
     Remove cosmic rays from a FITS image using the deepCR model and save the cleaned image to a specified output filename.
@@ -55,15 +55,21 @@ def cosmicray_finder_nnet(input_filename, output_filename, dilation_iterations=5
     image = hdu.data
 
     # Look elsewhere for model 
-    if ~os.path.isfile(model_path):
+    if not os.path.isfile(model_path):
         model_path = '/lustre/opsw/work/abarnes/applications/anaconda3/lib/python3.11/site-packages/learned_models/mask/ACS-WFC-F606W.pth'
 
     # Create an instance of deepCR with specified model configuration
     mdl = deepCR(mask=model_path, device="CPU")
 
+    print('[INFO] [deepCR] Running deepCR...')
     # Apply the model to the input image to detect cosmic rays and generate a mask
-    mask = mdl.clean(image, threshold=threshold, inpaint=False)
+    if patch==None: 
+        mask = mdl.clean(image, threshold=threshold, inpaint=False)
+    else: 
+        print('[INFO] [deepCR] Running with patch=%i' %patch)
+        mask = mdl.clean(image, threshold=threshold, inpaint=False, segment=True, patch=patch)
     
+    print('[INFO] [deepCR] Dilation of deepCR mask...')
     # Dilate the mask to ensure surrounding regions of cosmic rays are also masked
     mask = ndimage.binary_dilation(mask, iterations=dilation_iterations)
     hdu_mask = fits.PrimaryHDU(mask*1, hdu.header)
@@ -72,6 +78,7 @@ def cosmicray_finder_nnet(input_filename, output_filename, dilation_iterations=5
     image_ = image.copy()
     image_[mask] = np.nan
     
+    print('[INFO] [deepCR] Interpolated deepCR mask...')
     # Interpolate over the masked regions to fill them with suitable values
     interpolated_image = interpolate_masked(image_)
     interpolated_image = interpolate_masked(interpolated_image)
@@ -79,11 +86,11 @@ def cosmicray_finder_nnet(input_filename, output_filename, dilation_iterations=5
     mask = load_mask(os.path.dirname(output_filename))
     interpolated_image[mask] = np.nan
 
-    # Create a new HDU with the interpolated image and the original header
-    hdu_interpolated_image = fits.PrimaryHDU(interpolated_image, hdu.header)
-    
+    print('[INFO] [deepCR] Saving the deepCR mask...')    
     # Write the cleaned image to the output FITS file
     hdu_mask.writeto(output_filename.replace('.fits', '_masknnet.fits'), overwrite=True)
+
+    hdu_interpolated_image = fits.PrimaryHDU(interpolated_image, hdu.header)
     hdu_interpolated_image.writeto(output_filename, overwrite=True)
     
     return()
