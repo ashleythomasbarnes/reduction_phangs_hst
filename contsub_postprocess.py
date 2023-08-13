@@ -197,7 +197,7 @@ def mask_hdu_with_ds9(hdu, ds9_reg_file):
     """
 
     # Load the DS9 region
-    sky_regions = regions.read_ds9(ds9_reg_file)
+    sky_regions = regions.Regions.read(ds9_reg_file)
 
     # Convert sky regions to pixel regions
     wcs = WCS(hdu.header)
