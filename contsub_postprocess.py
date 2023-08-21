@@ -172,8 +172,8 @@ def process_halpha_background(hdu_hst, halpha_filename, sigma_clip_sigma=3.0, de
     hdu_hst_bgsub = hdu_hst.copy()
 
     # Replacing the data in the copied hdu objects with the background and the background subtracted data
-    hdu_hst_bg.data = np.array(data_bg, dtype=float32)
-    hdu_hst_bgsub.data = np.array(data_bgsub, dtype=float32)
+    hdu_hst_bg.data = np.array(data_bg, dtype=np.float32)
+    hdu_hst_bgsub.data = np.array(data_bgsub, dtype=np.float32)
 
     # Defining the output filenames and writing the output to the files
     output_filename = halpha_filename.replace('_raw.fits', '_bg.fits')
