@@ -24,7 +24,7 @@ def adjust_central_reference_pixel(input_filename, output_filename, shift_x, shi
     # Reproject the image with the updated header
     print("[INFO] Reprojecting the image...")
     array, _ = reproject_interp(hdu_tmp, hdu.header, parallel=True)
-    hdu_shifted = fits.PrimaryHDU(array, hdu.header)
+    hdu_shifted = fits.PrimaryHDU(np.array(array, dtype=np.float32), hdu.header)
 
     # Save the shifted FITS file
     print(f"[INFO] Saving the shifted FITS file as {output_filename}")

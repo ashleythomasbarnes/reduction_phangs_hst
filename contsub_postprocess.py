@@ -90,6 +90,7 @@ def process_halpha_units(input_filename, output_filename):
     print("[INFO] Converting units...")
     # Convert the data units to erg/s/cm^2
     hdu_hst.data = hdu_hst.data * 1e20
+    hdu_hst.data = np.array(hdu_hst.data, dtype=np.float32)
 
     print(f"[INFO] Saving the processed FITS file as {output_filename}")
     # Save the processed FITS file
@@ -292,7 +293,7 @@ def process_halpha_muse(input_muse_filename, output_muse_filename):
     hdu_muse_ha = fits.open(input_muse_filename)['HA6562_FLUX']
 
     # Create a new HDU with the Halpha data and header
-    hdu_muse_ha = fits.PrimaryHDU(hdu_muse_ha.data, hdu_muse_ha.header)
+    hdu_muse_ha = fits.PrimaryHDU(np.array(hdu_muse_ha.data, dtype=np.float32), hdu_muse_ha.header)
 
     # Write the new HDU to the output file
     hdu_muse_ha.writeto(output_muse_filename, overwrite=True)
@@ -375,6 +376,7 @@ def regrid(hdu_input, hdu_template, output_filename=None, conserve_flux=True):
         # Scale the output data to conserve flux (only if template pixel size is smaller than input)
         print(f"[INFO] Scaling the output data to conserve flux with factor {(pixscale_template / pixscale_input):.2f}")
         hdu_output.data = hdu_output.data * (pixscale_template / pixscale_input)
+        hdu_output.data = np.array(hdu_output.data, dtype=float32)
         print("[INFO] Flux scaling complete.")
 
     if output_filename is not None:
@@ -426,7 +428,7 @@ def smooth_image_with_beam(input_hdu, initial_resolution, desired_resolution, ou
     smoothed_data = convolve_fft(input_hdu.data, convolution_kernel, preserve_nan=True, allow_huge=True)
     print("[INFO] Image convolution complete.")
 
-    output_hdu = fits.PrimaryHDU(smoothed_data, input_hdu.header)
+    output_hdu = fits.PrimaryHDU(np.array(smoothed_data, dtype=float32), input_hdu.header)
 
     if output_filename is not None:
         # Save the smoothed image to a new FITS file
@@ -520,6 +522,9 @@ def save_diff_ratio_smoothed_image(hdu_muse_regrid, hdu_hst, hdu_hst_smoothed, o
 
     hdu_hst_ratio_anchored.data = (hdu_hst.data+scale_factor) * ratio_smooth
     hdu_hst_diff_anchored.data = hdu_hst.data + diff_smooth
+
+    hdu_hst_ratio_anchored.data = np.array(hdu_hst_ratio_anchored.data, dtype=np.float32)
+    hdu_hst_diff_anchored.data = np.array(hdu_hst_diff_anchored.data, dtype=np.float32)
 
     # Save the anchored HST image to the output file
     hdu_hst_ratio_anchored.writeto(output_ratio_anchored_filename, overwrite=True)

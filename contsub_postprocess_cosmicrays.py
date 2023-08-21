@@ -208,8 +208,8 @@ def subtract_intp_cut_data(hdu, source_positions, size_mask=3):
         Image after subtraction and interpolation.
     '''
 
-    image_int = hdu.data.copy()
-    image_masked = hdu.data.copy()
+    image_int = np.array(hdu.data.copy(), dtype=np.float32)
+    image_masked = np.array(hdu.data.copy(), dtype=np.float32)
     h, w = image_masked.shape[:2]
 
     # for source_position in tqdm(source_positions, desc='Processing interpolation of masked sources'):

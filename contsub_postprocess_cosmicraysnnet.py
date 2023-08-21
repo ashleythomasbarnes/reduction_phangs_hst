@@ -52,7 +52,7 @@ def cosmicray_finder_nnet(input_filename, output_filename, dilation_iterations=5
     
     # Load the FITS file and extract image data and header
     hdu = fits.open(input_filename)[0]
-    image = hdu.data
+    image = np.array(hdu.data, dtype=float32)
 
     # Look elsewhere for model 
     if not os.path.isfile(model_path):
@@ -72,7 +72,7 @@ def cosmicray_finder_nnet(input_filename, output_filename, dilation_iterations=5
     print('[INFO] [deepCR] Dilation of deepCR mask...')
     # Dilate the mask to ensure surrounding regions of cosmic rays are also masked
     mask = ndimage.binary_dilation(mask, iterations=dilation_iterations)
-    hdu_mask = fits.PrimaryHDU(mask*1, hdu.header)
+    hdu_mask = fits.PrimaryHDU(np.array(mask*1, dtype=np.int32), hdu.header)
 
     # Copy the original image and set the masked regions (cosmic rays) to NaN
     image_ = image.copy()
@@ -85,6 +85,7 @@ def cosmicray_finder_nnet(input_filename, output_filename, dilation_iterations=5
 
     mask = load_mask(os.path.dirname(output_filename))
     interpolated_image[mask] = np.nan
+    interpolated_image = np.array(interpolated_image, dtype=np.float32)
 
     print('[INFO] [deepCR] Saving the deepCR mask...')    
     # Write the cleaned image to the output FITS file

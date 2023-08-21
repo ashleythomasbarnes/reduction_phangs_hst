@@ -114,12 +114,13 @@ def perform_continuum_subtraction_twocont(hdu_halpha, hdu_cont1, hdu_cont2, halp
     data_cont = np.where(mask_cont, cont_ab_wt, cont_ab_scaled)
 
     # Write final continuum file 
-    hdu_cont = fits.PrimaryHDU(data_cont,hdu_cont1.header)
+    hdu_cont = fits.PrimaryHDU(np.array(data_cont, dtype=np.float32), hdu_cont1.header)
     hdu_cont.writeto(cont_outputfilename, overwrite=True)
     print('[INFO] Continuum file saved:', cont_outputfilename + '.fits')
 
     # Subtract scaled continuum from emission line data & save file
     hdu_halpha.data = hdu_halpha.data - hdu_cont.data
+    hdu_halpha.data = np.array(hdu_halpha.data, dtype=np.float32)
     hdu_halpha.writeto(halpha_outputfilename, overwrite=True)
 
     return(None)
