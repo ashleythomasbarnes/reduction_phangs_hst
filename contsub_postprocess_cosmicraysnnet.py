@@ -52,7 +52,7 @@ def cosmicray_finder_nnet(input_filename, output_filename, dilation_iterations=5
     
     # Load the FITS file and extract image data and header
     hdu = fits.open(input_filename)[0]
-    image = np.array(hdu.data, dtype=float32)
+    image = np.array(hdu.data, dtype=np.float32)
 
     # Look elsewhere for model 
     if not os.path.isfile(model_path):
