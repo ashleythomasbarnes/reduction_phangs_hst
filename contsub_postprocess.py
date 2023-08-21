@@ -172,8 +172,8 @@ def process_halpha_background(hdu_hst, halpha_filename, sigma_clip_sigma=3.0, de
     hdu_hst_bgsub = hdu_hst.copy()
 
     # Replacing the data in the copied hdu objects with the background and the background subtracted data
-    hdu_hst_bg.data = np.float32(data_bg)
-    hdu_hst_bgsub.data = np.float32(data_bgsub)
+    hdu_hst_bg.data = np.array(data_bg, dtype=float32)
+    hdu_hst_bgsub.data = np.array(data_bgsub, dtype=float32)
 
     # Defining the output filenames and writing the output to the files
     output_filename = halpha_filename.replace('_raw.fits', '_bg.fits')
@@ -376,7 +376,7 @@ def regrid(hdu_input, hdu_template, output_filename=None, conserve_flux=True):
         # Scale the output data to conserve flux (only if template pixel size is smaller than input)
         print(f"[INFO] Scaling the output data to conserve flux with factor {(pixscale_template / pixscale_input):.2f}")
         hdu_output.data = hdu_output.data * (pixscale_template / pixscale_input)
-        hdu_output.data = np.array(hdu_output.data, dtype=float32)
+        hdu_output.data = np.array(hdu_output.data, dtype=np.float32)
         print("[INFO] Flux scaling complete.")
 
     if output_filename is not None:
@@ -428,7 +428,7 @@ def smooth_image_with_beam(input_hdu, initial_resolution, desired_resolution, ou
     smoothed_data = convolve_fft(input_hdu.data, convolution_kernel, preserve_nan=True, allow_huge=True)
     print("[INFO] Image convolution complete.")
 
-    output_hdu = fits.PrimaryHDU(np.array(smoothed_data, dtype=float32), input_hdu.header)
+    output_hdu = fits.PrimaryHDU(np.array(smoothed_data, dtype=np.float32), input_hdu.header)
 
     if output_filename is not None:
         # Save the smoothed image to a new FITS file
