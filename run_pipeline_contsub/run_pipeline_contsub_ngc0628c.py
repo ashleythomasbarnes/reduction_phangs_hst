@@ -49,10 +49,12 @@ cont1_inputfilename = glob.glob('%s*%s*%s*.fits' %(inputdir_hst, galaxy, cont1_f
 cont2_inputfilename = glob.glob('%s*%s*%s*.fits' %(inputdir_hst, galaxy, cont2_filter))[0]
 
 # Create output directory for continuum subtraction
-output_dir = '%s/%s_%s_%s/' % (outputdir, halpha_filter, cont1_filter, cont2_filter)  # Define the output directory path
+output_dir = '%s/%s_%s_%s/' % (outputdir, halpha_filter, cont1_filter, cont2_filter) 
 
-halpha_filename = '%s/%s_halpha_raw.fits' % (output_dir, galaxy)  # Set the output filename for the continuum-subtracted emission line image
-cont_filename = '%s/%s_cont_raw.fits'  % (output_dir, galaxy)  # Set the output filename for the scaled continuum image
+# Set the output filename for the continuum-subtracted emission line image
+# Set the output filename for the scaled continuum image
+halpha_filename = '%s/%s_halpha_raw.fits' % (output_dir, galaxy)  
+cont_filename = '%s/%s_cont_raw.fits'  % (output_dir, galaxy)  
 
 # Define MUSE input files for flux postprocessing
 # If not here will overwrite commands to run...
@@ -66,9 +68,10 @@ except:
     run_cosmics = False
     run_cosmicsnnet = False 
 
+# Remove the output directory and create the output directory if it doesn't exist
 if start_again:
-    contsub_misc.remove_directory(output_dir, safety=False)  # Remove the output directory 
-contsub_misc.create_directory(output_dir)  # Create the output directory if it doesn't exist
+    contsub_misc.remove_directory(output_dir, safety=False)  
+contsub_misc.create_directory(output_dir)  
 
 if run_contsub: 
 
@@ -76,14 +79,16 @@ if run_contsub:
     # Perform continuum subtraction on the halpha_inputfilename using the cont1_inputfilename and cont2_inputfilename
     contsub.continuum_subtraction(halpha_inputfilename, cont1_inputfilename, halpha_filename, cont_filename, cont2_inputfilename)
 
-    # Get mask of mosaic map
-    contsub_postprocess.get_mask(halpha_filename)
-
     # Define the output filename by replacing '_raw.fits' with '.fits'
     output_filename = halpha_filename.replace('_raw.fits', '.fits')
 
-    # Process the Halpha units and save the result to the output file
+    # Process the Halpha units, remove nans and save the result to the output file
     hdu_hst = contsub_postprocess.process_halpha_units(halpha_filename, output_filename)
+    hdu_hst = contsub_postprocess.remove_nan_padding(hdu_hst)
+    hdu_hst.writeto(output_filename, overwrite=True)
+
+    # Get mask of mosaic map
+    contsub_postprocess.get_mask(output_filename)
 
     # Call the 'process_halpha_background' function, passing in the hdu_hst and halpha_filename. 
     # This function processes the H-alpha image to remove the background. 
@@ -109,43 +114,50 @@ if run_contsub_wmuse:
 
     # Smooth the HST image with the desired beam resolution and save the result to the output file
     output_filename = halpha_filename.replace('_raw.fits', '_bgsub_smoothed.fits')
-    hdu_hst_bgsub_smoothed = contsub_postprocess.smooth_image_with_beam(hdu_hst_bgsub, initial_resolution, desired_resolution, output_filename=output_filename)
+    hdu_hst_bgsub_smoothed = contsub_postprocess.smooth_image_with_beam(hdu_hst_bgsub, initial_resolution, desired_resolution, output_filename)
 
-
+    # These are just for pretty images
+    # Save the difference and ratio images, and smoothed HST image, and obtain the resulting HDUs
     # Generate the output filename for the difference and ratio image 
+    # Generate the output filename for the anchored HST images
     output_ratio_filename = halpha_filename.replace('_raw.fits', '_bgsub_ratio.fits')
     output_diff_filename = halpha_filename.replace('_raw.fits', '_bgsub_diff.fits')
-
-    # Generate the output filename for the anchored HST images
     output_ratio_anchored_filename = halpha_filename.replace('_raw.fits', '_bgsub_ratio_anchored.fits')
     output_diff_anchored_filename = halpha_filename.replace('_raw.fits', '_bgsub_diff_anchored.fits')
-
-    # Save the difference and ratio images, and smoothed HST image, and obtain the resulting HDUs
-    output = contsub_postprocess.save_diff_ratio_smoothed_image(hdu_muse_regrid, hdu_hst_bgsub, hdu_hst_bgsub_smoothed, 
+    _ = contsub_postprocess.save_diff_ratio_smoothed_image(hdu_muse_regrid, hdu_hst_bgsub, hdu_hst_bgsub_smoothed, 
                                                                output_ratio_filename, output_diff_filename, 
                                                                output_ratio_anchored_filename, output_diff_anchored_filename)
 
-    hdu_ratio_smooth, hdu_diff_smooth, hdu_hst_bgsub_ratio_anchored, hdu_hst_bgsub_diff_anchored = output
-
-
-    # Generate the output filename for the anchored HST image with intensity negations
-    output_ratio_anchored_filename = halpha_filename.replace('_raw.fits', '_bgsub_ratio_anchored_intnegs.fits')
-    output_diff_anchored_filename = halpha_filename.replace('_raw.fits', '_bgsub_diff_anchored_intnegs.fits')
-
-    # Process the anchored HST image with intensity negations and save the result to the output file
-    hdu_hst_bgsub_ratio_anchored_intnegs = contsub_postprocess.process_intnegs_anchored_image(hdu_hst_bgsub_ratio_anchored, output_ratio_anchored_filename)
-    hdu_hst_bgsub_diff_anchored_intnegs = contsub_postprocess.process_intnegs_anchored_image(hdu_hst_bgsub_diff_anchored, output_diff_anchored_filename)
-
-
+    # Create a 2D histogram and fit for the provided HDU objects, and save the modified second HDU object
     # Define the output filename
     output_fit_anchored_filename = halpha_filename.replace('_raw.fits', '_bgsub_fit_anchored.fits')
-    # Create a 2D histogram and fit for the provided HDU objects, and save the modified second HDU object
     hdu_hst_bgsub_fit_anchored = contsub_postprocess.create_2d_hist_and_fit(hdu_muse_regrid, hdu_hst_bgsub_smoothed, hdu_hst_bgsub, output_fit_anchored_filename)
 
+    # Process the anchored fit image using the defined function, and save the result
     # Define the filename for the processed anchored fit image
     hdu_hst_bgsub_fit_anchored_intnegs_filename = halpha_filename.replace('_raw.fits', '_bgsub_fit_anchored_intnegs.fits')
-    # Process the anchored fit image using the defined function, and save the result
     hdu_hst_bgsub_fit_anchored_intnegs = contsub_postprocess.process_anchored_fit_image(hdu_hst_bgsub_fit_anchored, hdu_hst_bgsub_fit_anchored_intnegs_filename)
+
+    # Smooth the HST image with the desired beam resolution and save the result to the output file
+    output_filename = halpha_filename.replace('_raw.fits', '_bgsub_fit_anchored_intnegs_smoothed.fits')
+    hdu_hst_bgsub_fit_anchored_intnegs_smoothed = contsub_postprocess.smooth_image_with_beam(hdu_hst_bgsub_fit_anchored_intnegs, initial_resolution, desired_resolution, output_filename)
+
+    # These are for the cosmic ray subtraction
+    # Save the difference and ratio images, and smoothed HST image, and obtain the resulting HDUs
+    # Generate the output filename for the difference and ratio image 
+    # Generate the output filename for the anchored HST images
+    output_ratio_filename = halpha_filename.replace('_raw.fits', '_bgsub_fit_anchored_intnegs_ratio.fits')
+    output_diff_filename = halpha_filename.replace('_raw.fits', '_bgsub_fit_anchored_intnegs_diff.fits')
+    output_ratio_anchored_filename = halpha_filename.replace('_raw.fits', '_bgsub_fit_anchored_intnegs_ratio_anchored.fits')
+    output_diff_anchored_filename = halpha_filename.replace('_raw.fits', '_bgsub_fit_anchored_intnegs_diff_anchored.fits')
+    output = contsub_postprocess.save_diff_ratio_smoothed_image(hdu_muse_regrid, 
+                                                                hdu_hst_bgsub_fit_anchored_intnegs, 
+                                                                hdu_hst_bgsub_fit_anchored_intnegs_smoothed, 
+                                                                output_ratio_filename, 
+                                                                output_diff_filename, 
+                                                                output_ratio_anchored_filename,
+                                                                output_diff_anchored_filename)
+    _, _, _, hdu_hst_bgsub_diff_anchored = output
 
 if run_cosmics:
 
@@ -164,7 +176,6 @@ if run_cosmics:
     # The following commented out code is for processing an image hdu_hst_bgsub_ratio_anchored_intnegs in the same manner
     # It first subtracts the cosmic rays, then defines a filename for the processed image, 
     # and finally writes the processed image to the defined filename
-
     hdu_hst_bgsub_ratio_anchored_nocosmic = contsub_postprocess_cosmicrays.subtract_intp_cut_data(hdu_hst_bgsub_ratio_anchored_intnegs, cosmicray_positions)
     hdu_hst_bgsub_ratio_anchored_intnegs_nocosmic_filename = halpha_filename.replace('_raw.fits', '_ratio_anchored_intnegs_nocosmic.fits')
     contsub_postprocess_cosmicrays.save_masked(hdu_hst_bgsub_ratio_anchored_nocosmic, hdu_hst_bgsub_ratio_anchored_intnegs_nocosmic_filename)
@@ -173,7 +184,6 @@ if run_cosmicsnnet:
 
     hdu_hst_bgsub_fit_anchored_intnegs_nocosmic_filename = halpha_filename.replace('_raw.fits', '_bgsub_fit_anchored_intnegs_nocosmic.fits')
     hdu_hst_bgsub_fit_anchored_intnegs_nocosmic_nnet_filename = halpha_filename.replace('_raw.fits', '_bgsub_fit_anchored_intnegs_nocosmic_nnet.fits')
-
     contsub_postprocess_cosmicraysnnet.cosmicray_finder_nnet(hdu_hst_bgsub_fit_anchored_intnegs_nocosmic_filename, hdu_hst_bgsub_fit_anchored_intnegs_nocosmic_nnet_filename)
 
 if run_contsub_nomuse:

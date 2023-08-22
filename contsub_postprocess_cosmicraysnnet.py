@@ -68,10 +68,13 @@ def cosmicray_finder_nnet(input_filename, output_filename, dilation_iterations=5
     else: 
         print('[INFO] [deepCR] Running with patch=%i' %patch)
         mask = mdl.clean(image, threshold=threshold, inpaint=False, segment=True, patch=patch)
+        mask = mask != 0
     
-    print('[INFO] [deepCR] Dilation of deepCR mask...')
     # Dilate the mask to ensure surrounding regions of cosmic rays are also masked
-    mask = ndimage.binary_dilation(mask, iterations=dilation_iterations)
+    if dilation_iterations != 0:  
+        print('[INFO] [deepCR] Dilation of deepCR mask...')
+        mask = ndimage.binary_dilation(mask, iterations=dilation_iterations)
+
     hdu_mask = fits.PrimaryHDU(np.array(mask*1, dtype=np.int32), hdu.header)
 
     # Copy the original image and set the masked regions (cosmic rays) to NaN
