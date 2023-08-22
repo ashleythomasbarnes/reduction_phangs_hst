@@ -10,9 +10,9 @@ start_again = True
 
 # What to run?
 run_contsub = True
-run_contsub_wmuse = False
-run_cosmics = False
-run_cosmicsnnet = False 
+run_contsub_wmuse = True
+run_cosmics = True
+run_cosmicsnnet = True 
 
 # Define the galaxy
 galaxy = 'ngc628'
@@ -40,8 +40,8 @@ contsub_run.run_pipeline(start_again=start_again,
                             halpha_filter = halpha_filter,
                             cont1_filter = cont1_filter,
                             cont2_filter = cont2_filter,
-                            inputdir_hst = '../hst/',
-                            inputdir_muse = '../muse/',
-                            outputdir = '../hst_contsub/', 
+                            inputdir_hst = inputdir_hst,
+                            inputdir_muse = inputdir_muse,
+                            outputdir = outputdir, 
                             threshold=0.25, 
                             dilation_iterations=5)

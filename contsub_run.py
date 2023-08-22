@@ -109,9 +109,15 @@ def run_pipeline(start_again=False,
 	    output_diff_filename = halpha_filename.replace('_raw.fits', '_bgsub_diff.fits')
 	    output_ratio_anchored_filename = halpha_filename.replace('_raw.fits', '_bgsub_ratio_anchored.fits')
 	    output_diff_anchored_filename = halpha_filename.replace('_raw.fits', '_bgsub_diff_anchored.fits')
-	    _ = contsub_postprocess.save_diff_ratio_smoothed_image(hdu_muse_regrid, hdu_hst_bgsub, hdu_hst_bgsub_smoothed, 
+	    output = contsub_postprocess.save_diff_ratio_smoothed_image(hdu_muse_regrid, hdu_hst_bgsub, hdu_hst_bgsub_smoothed, 
 	                                                               output_ratio_filename, output_diff_filename, 
 	                                                               output_ratio_anchored_filename, output_diff_anchored_filename)
+	    hdu_ratio_smooth, hdu_diff_smooth, hdu_hst_bgsub_ratio_anchored, hdu_hst_bgsub_diff_anchored = output
+
+		# Process the anchored HST image with intensity negations and save the result to the output file
+	    # Generate the output filename for the anchored HST image with intensity negations
+	    output_ratio_anchored_filename = halpha_filename.replace('_raw.fits', '_bgsub_ratio_anchored_intnegs.fits')
+	    hdu_hst_bgsub_ratio_anchored_intnegs = contsub_postprocess.process_intnegs_anchored_image(hdu_hst_bgsub_ratio_anchored, output_ratio_anchored_filename)
 
 	    # Create a 2D histogram and fit for the provided HDU objects, and save the modified second HDU object
 	    # Define the output filename
