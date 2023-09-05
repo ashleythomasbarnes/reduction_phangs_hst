@@ -4,11 +4,13 @@ import numpy as np
 import matplotlib.pyplot as plt
 from astropy.table import Table
 import concurrent.futures
-from tqdm import tqdm
+from tqdm.auto import tqdm
 from astropy.io import fits
 from reproject import reproject_interp
+from scipy.optimize import curve_fit
 
-plt.style.use('paper.mplstyle')
+plt.style.use('paper')
+
 
 def process_muse_catalouge(input_nebulae_catalog_filename, galaxy):
     """
@@ -56,8 +58,9 @@ def read_fits_files(input_dir, input_nebulae_mask_filename, galaxy):
     input_nebulae_mask_hst_filename = '%s/%s_nebmask_hst.fits' % (input_dir, galaxy)
     if not os.path.isfile(input_nebulae_mask_hst_filename):
         print("Reprojecting nebulae mask...")
-        data_nebmask_hst, _ = reproject_interp(fits_dict['nebmask_muse'], fits_dict['halpha'].header, order=0, parallel=True)
+        data_nebmask_hst, _ = reproject_interp(fits_dict['nebmask_muse'], fits_dict['halpha'].header, order='nearest-neighbor')
         hdu_nebmask_hst = fits.PrimaryHDU(data_nebmask_hst, fits_dict['halpha'].header)
+        # hdu_nebmask_hst = fits.PrimaryHDU(np.array(data_nebmask_hst, dtype=np.int32), fits_dict['halpha'].header)
         hdu_nebmask_hst.writeto(input_nebulae_mask_hst_filename, overwrite=True)
         fits_dict['nebmask_hst'] = hdu_nebmask_hst  # Add the FITS data to the dictionary with the key 'hdu_nebmask_hst'
         print(f"Processing complete. Saving the processed nebulae mask as {input_nebulae_mask_hst_filename}")
@@ -69,46 +72,29 @@ def read_fits_files(input_dir, input_nebulae_mask_filename, galaxy):
     return fits_dict
 
 
-def process_nebulae_flux(hdu_nebmask_hst, hdu_nebmask_muse, hdu_ha_hst, hdu_ha_hst_anchored, hdu_ha_muse):
+def process_nebulae_flux(hdu_nebmask, hdu, table_nebcat):
     """
     Calculates the flux for each nebula using concurrent processing.
 
     Args:
-        hdu_nebmask_hst (astropy.io.fits.PrimaryHDU): HDU for the nebulae mask in HST coordinates.
-        hdu_nebmask_muse (astropy.io.fits.PrimaryHDU): HDU for the nebulae mask in MUSE coordinates.
-        hdu_ha_hst (astropy.io.fits.PrimaryHDU): HDU for the Halpha data in HST coordinates.
-        hdu_ha_hst_anchored (astropy.io.fits.PrimaryHDU): HDU for the anchored Halpha data in HST coordinates.
-        hdu_ha_muse (astropy.io.fits.PrimaryHDU): HDU for the Halpha data in MUSE coordinates.
-
+        hdu_nebmask_hst (astropy.io.fits.PrimaryHDU): HDU for the nebulae mask
+        hdu_nebmask (astropy.io.fits.PrimaryHDU): HDU 
     Returns:
-        tuple: Three NumPy arrays containing the flux values for HST, anchored HST, and MUSE, respectively.
+    
     """
-    ids_neb = np.unique(hdu_nebmask_muse.data)
-    ids_neb = ids_neb[1:]
+    # ids_neb = np.unique(hdu_nebmask.data)
+    # ids_neb = ids_neb[~np.isnan(ids_neb)]
+    # ids_neb = ids_neb[ids_neb!=-1]
+    
+    ids_neb = table_nebcat['region_ID']
+    
+    flux = np.ones(len(ids_neb))
+    
+    for i in tqdm(range(len(ids_neb))):
+        mask = hdu_nebmask.data == ids_neb[i]
+        flux[i] = np.nansum(hdu.data[mask])
 
-    flux_hst = np.ones(len(ids_neb))
-    flux_hst_anchored = np.ones(len(ids_neb))
-    flux_muse = np.ones(len(ids_neb))
-
-    def process_neb(i):
-        mask_hst = hdu_nebmask_hst.data == ids_neb[i]
-        mask_muse = hdu_nebmask_muse.data == ids_neb[i]
-
-        flux_hst = np.nansum(hdu_ha_hst.data[mask_hst])
-        flux_hst_anchored = np.nansum(hdu_ha_hst_anchored.data[mask_hst])
-        flux_muse = np.nansum(hdu_ha_muse.data[mask_muse])
-
-        return flux_hst, flux_hst_anchored, flux_muse
-
-    # Initialize a ThreadPoolExecutor
-    with concurrent.futures.ThreadPoolExecutor() as executor:
-        futures = [executor.submit(process_neb, i) for i in range(len(ids_neb))]
-
-        # Iterate over the completed futures
-        for i, future in tqdm(enumerate(concurrent.futures.as_completed(futures)), total=len(futures), desc="Processing Nebs", unit="neb"):
-            flux_hst[i], flux_hst_anchored[i], flux_muse[i] = future.result()
-
-    return flux_hst, flux_hst_anchored, flux_muse
+    return flux
 
 
 def plot_fits_data(fits_dict, galaxy):
@@ -181,23 +167,20 @@ def plot_fits_data(fits_dict, galaxy):
     fig.savefig('./qa/%s_halpha_hstmuse_fluxcomp.png' % galaxy, dpi=300, bbox_inches='tight')
     plt.close('all')
 
-    return None
 
-
-def plot_flux_comparison(flux_muse, flux_hst, flux_hst_anchored, galaxy):
+def plot_flux_comparison(flux_muse, flux_hst, output_filename, showplot=True):
     """
     Plots a flux comparison between MUSE and HST flux values in two panels.
 
     Args:
         flux_muse (numpy.ndarray): Array of MUSE flux values.
         flux_hst (numpy.ndarray): Array of HST flux values.
-        flux_hst_anchored (numpy.ndarray): Array of anchored HST flux values.
         galaxy (str): Name of the galaxy.
 
     Returns:
         None
     """
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 5), sharex=True, sharey=True)
+    fig, ax1 = plt.subplots(1, 1, figsize=(5, 5))
 
     # Plotting the first panel
     ax1.scatter(flux_muse, flux_hst, ec='none', fc='grey', s=25)
@@ -219,30 +202,183 @@ def plot_flux_comparison(flux_muse, flux_hst, flux_hst_anchored, galaxy):
 
     ax1.set_xlabel('MUSE flux, (erg/s/cm2)')
     ax1.set_ylabel('HST flux, (erg/s/cm2)')
+    
+    fig.savefig(output_filename, dpi=300, bbox_inches='tight')
+    
+    if not showplot: 
+        plt.close('all')
 
-    # Plotting the second panel
-    ax2.scatter(flux_muse, flux_hst_anchored, ec='none', fc='grey', s=25)
-    ax2.scatter(flux_muse, flux_hst_anchored, ec='none', fc='white', s=12)
-    ax2.scatter(flux_muse, flux_hst_anchored, alpha=0.1, s=25, ec='none', fc='C0')
 
-    ax2.plot([1e-20, 1e20], np.array([1e-20, 1e20]), c='grey', ls='--', label='y=x')
-    ax2.plot([1e-20, 1e20], np.array([1e-20, 1e20]) * 3, c='grey', ls=':', label='y=3x')
-    ax2.plot([1e-20, 1e20], np.array([1e-20, 1e20]) / 3, c='grey', ls=':', label='y=x/3')
+def make_histogram(hdu, bins=100, plot=True, percentilecut=True):
+    """
+    Generate histogram data from a FITS HDU image.
+    
+    Parameters:
+    - hdu (HDU): The input HDU.
+    - bins (int): Number of bins for the histogram.
+    - plot (bool): Whether to plot the histogram.
+    
+    Returns:
+    - hist (tuple): Histogram values and bin edges.
+    """
+    data = hdu.data.flatten()
+    if percentilecut:
+        data = data[data>np.nanpercentile(data, 0.01)]
+        data = data[data<np.nanpercentile(data, 99.99)]
+    hist = np.histogram(data[~np.isnan(data)], bins=bins)
+    
+    if plot:
+        plt.hist(data[~np.isnan(data)], bins=bins)
+        plt.xlabel("Pixel Value")
+        plt.ylabel("Frequency")
+        plt.title("Histogram of data")
+        plt.yscale('log')
+        plt.show()
+        
+    return hist
 
-    ax2.set_xscale('log')
-    ax2.set_yscale('log')
+def get_statistics(hist):
+    """
+    Get statistics (mean, median, std, etc.) from histogram data.
+    
+    Parameters:
+    - hist (tuple): Histogram values and bin edges.
+    
+    Returns:
+    - stats (dict): Dictionary of statistics.
+    """
+    values = hist[0]
+    bin_edges = hist[1]
+    
+    bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
+    mean = np.average(bin_centers, weights=values)
+    std = np.sqrt(np.average((bin_centers - mean)**2, weights=values))
+    median = bin_centers[np.searchsorted(np.cumsum(values), np.sum(values)/2)]
+    
+    stats = {"mean": mean, "median": median, "std": std}
+    
+    return stats
 
-    ax2.set_xlim(flux_muse[flux_muse > 0].min(), flux_muse[flux_muse > 0].max())
-    ax2.set_ylim(flux_hst_anchored[flux_hst_anchored > 0].min(), flux_hst_anchored[flux_hst_anchored > 0].max())
+def gaussian(x, A, mu, sigma):
+    """Gaussian function."""
+    return A * np.exp(-(x - mu)**2 / (2 * sigma**2))
 
-    ax2.grid(alpha=0.3, linestyle=':')
-    ax2.legend(loc='best')
+def fit_gaussian_to_histogram(hist, stats):
+    
+    """
+    Fit a Gaussian function to histogram data.
+    
+    Parameters:
+    - hist (tuple): Histogram values and bin edges.
+    - stats (dict): Statistics of the histogram data (mean, std).
+    
+    Returns:
+    - popt (tuple): Optimized parameters of the Gaussian fit.
+    """
+    
+    values = hist[0]
+    bin_edges = hist[1]
+    bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
+    bin_centers = np.linspace(bin_centers.min(), bin_centers.max(), len(values))
+    
+    p0 = [np.max(values), stats['mean'], stats['std']]  # Initial guess
+    popt, _ = curve_fit(gaussian, bin_centers, values, p0=p0)
+    
+    # Plot the histogram and its fit
+    # fig = plt.figure(figsize=(15,5))
+    fig, axes = plt.subplots(1,2,gridspec_kw={'width_ratios':[2,1]}, figsize=(15,5), sharey=True)
+    
+    for ax in axes:
+        
+        ax.hist(bin_centers, bins=bin_edges, weights=values, alpha=0.4, label='Data: mean=%0.2f med=%0.2f std=%0.2f' %(stats['mean'], stats['median'], stats['std']))
+        ax.plot(bin_centers, values, alpha=1, c='C0', lw=1, ds='steps-mid')
+        ax.plot(bin_centers, gaussian(bin_centers, *popt), 'k--', label='Fit: mean=%0.2f std=%0.2f' %(popt[1], popt[2]))
+        ax.plot([popt[1],popt[1]], [0.9, values.max()*1.5], 'k:', alpha=0.4, label='Fit mean')
 
-    ax2.set_xlabel('MUSE flux, (erg/s/cm2)')
-    ax2.set_ylabel('HST anchored flux, (erg/s/cm2)')
+        ax.set_xlabel("Flux [erg/s/cm2/pixel]")
+        ax.set_yscale('log')
+        ax.set_ylim([0.9, values.max()*1.5])
+        ax.grid()
+         
+    axes[0].set_ylabel("Frequency")
+    axes[0].legend()
+    axes[0].set_xlim([bin_centers.min(), bin_centers.max()])
+    # axes[1].set_xlim([-100, 100])
+    axes[1].set_xlim([popt[1]-popt[2]*5,popt[1]+popt[2]*5])
+    
+    plt.tight_layout()
+    
+    return popt, fig
 
-    fig.savefig(f'./qa/{galaxy}_flux_musehstcomp.pdf', dpi=300, bbox_inches='tight')
-    fig.savefig(f'./qa/{galaxy}_flux_musehstcomp.png', dpi=300, bbox_inches='tight')
-    plt.close('all')
+def run_histogram(hdu, outputfile=None, bins=1000):
+    hist = make_histogram(hdu, bins=bins, plot=False)
+    stats = get_statistics(hist)
+    fit_params, fig = fit_gaussian_to_histogram(hist, stats)
+    
+    if outputfile is not None: 
+        fig.savefig(outputfile)
 
-    return(None)
+
+def get_scaling(hdu):
+    hdu_scaled = hdu.copy()
+    data = hdu_scaled.data
+    data = (data-np.nanmin(data))/(np.nanmax(data)-np.nanmin(data))
+    data = np.log10(data)
+    # data = (data-np.nanmin(data))/(np.nanmax(data)-np.nanmin(data))
+    hdu_scaled.data = data
+    return(hdu_scaled)
+
+def plot_map(fits_dict, outputfile, showplots=True, norm=False):
+    """
+    Plots the FITS data using APLpy.
+
+    Args:
+        fits_dict (dict): Dictionary containing the FITS data.
+        galaxy (str): Name of the galaxy.
+
+    Returns:
+        None
+    """
+    fig = plt.figure(figsize=(15, 15))
+
+    ax = ['']*9
+    
+    keys = ['musehalpha_regrid', 
+            'halpha_bgsub_smoothed', 
+            'halpha', 
+            'halpha_bgsub', 
+            'halpha_bgsub_fit_anchored', 
+            'halpha_bgsub_fit_anchored_intnegs', 
+            'halpha_bgsub_fit_anchored_intnegs_nocosmic', 
+            'halpha_bgsub_fit_anchored_intnegs_nocosmic_nnet', 
+            'halpha_bgsub_fit_anchored_intnegs_ratio']
+    
+    for i in tqdm(range(len(keys))):
+    
+        if norm:
+            hdu = get_scaling(fits_dict[keys[i]])
+            vmin, vmax = np.nanpercentile(hdu.data, (2, 99.9))
+        else: 
+            hdu = fits_dict[keys[i]]
+            vmin, vmax = np.nanpercentile(fits_dict['halpha_bgsub_smoothed'].data, (2, 99))
+        
+        ax[i] = aplpy.FITSFigure(hdu, subplot=(3, 3, i+1), figure=fig)
+        ax[i].show_colorscale(vmin=vmin, vmax=vmax, cmap='turbo', stretch='linear')
+        
+        ax[i].axis_labels.hide()
+        ax[i].tick_labels.hide()
+
+        ax[i].add_colorbar(location='top', axis_label_text='%s' %keys[i])
+
+    fig.tight_layout()
+    
+    if norm: 
+        outputfile = outputfile.replace('.pdf','_norm.pdf')
+        fig.savefig(outputfile, dpi=300, bbox_inches='tight')
+    else:
+        fig.savefig(outputfile, dpi=300, bbox_inches='tight')
+    
+    if not showplots:
+        plt.close('all')
+        
+    return()
