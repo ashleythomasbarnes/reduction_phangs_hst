@@ -18,6 +18,7 @@ from matplotlib import colors
 import glob
 from astropy.wcs import WCS
 import regions
+from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 def get_mask(halpha_filename):
     """
@@ -55,8 +56,8 @@ def get_mask(halpha_filename):
 
     return() 
 
-def load_mask(inputdir):
-    filename = glob.glob('%s/*mask.fits' %inputdir)[0]
+def load_mask(inputdir, galaxy):
+    filename = glob.glob('%s/%s*mask.fits' %(inputdir, galaxy))[0]
     hdu = fits.open(filename)[0]
     return(hdu.data==0) 
 
@@ -181,26 +182,33 @@ def process_halpha_background(hdu_hst, halpha_filename, sigma_clip_sigma=3.0, de
     Returns: None
     '''
 
-    # Extracting the data from the hdu object
+    # # Extracting the data from the hdu object
+    # data = hdu_hst.data
+
+    # # Defining the sigma clipping parameters
+    # sigma_clip = SigmaClip(sigma=sigma_clip_sigma, maxiters=10)
+
+    # # Calculating the detection threshold for the data
+    # threshold = detect_threshold(data, nsigma=detect_threshold_nsigma, sigma_clip=sigma_clip)
+
+    # # Detecting sources in the data above the threshold
+    # segment_img = detect_sources(data, threshold, npixels=detect_sources_npixels)
+
+    # # Creating a circular footprint for source detection
+    # footprint = circular_footprint(radius=footprint_radius)
+
+    # # Making a source mask using the footprint
+    # mask = segment_img.make_source_mask(footprint=footprint)
+
+    # # Creating a coverage mask to handle NaN values
+    # coverage_mask = ~np.isnan(data)
+
     data = hdu_hst.data
-
-    # Defining the sigma clipping parameters
-    sigma_clip = SigmaClip(sigma=sigma_clip_sigma, maxiters=10)
-
-    # Calculating the detection threshold for the data
-    threshold = detect_threshold(data, nsigma=detect_threshold_nsigma, sigma_clip=sigma_clip)
-
-    # Detecting sources in the data above the threshold
-    segment_img = detect_sources(data, threshold, npixels=detect_sources_npixels)
-
-    # Creating a circular footprint for source detection
-    footprint = circular_footprint(radius=footprint_radius)
-
-    # Making a source mask using the footprint
-    mask = segment_img.make_source_mask(footprint=footprint)
-
-    # Creating a coverage mask to handle NaN values
-    coverage_mask = ~np.isnan(data)
+    rms = mad_std(data, ignore_nan=True)
+    rms = mad_std(data[data<rms], ignore_nan=True)
+    mask_high = data > rms*5
+    mask_low = data > rms
+    mask = binary_dilation(mask_high, mask=mask_low, iterations=-1)
 
     # Creating a background estimator
     bkg = Background2D(data, box_size=box_size, filter_size=filter_size, mask=mask, 
@@ -289,40 +297,28 @@ def smooth_hdu_gaussian(data, sigma_x=0.5, sigma_y=0.5):
 
     return smoothed_data
 
-def mask_stars(hdu, output_filename, region_filename='./starmask.reg'):
+def mask_stars(hdu, hdu_mask, output_filename, sigma=0.5, factor=np.sqrt(2)):
     """
     Masks a FITS file using regions from a DS9 region file. The masked areas are replaced 
     with noise computed from the unmasked data.
-
-    Parameters:
-    - input_filename (str): Path to the input FITS file.
-    - region_filename (str): Path to the DS9 region file.
-    - output_filename (str): Name of the output FITS file with masked regions replaced by noise.
-    
-    Returns:
-    - None, but writes a new FITS file with the masked regions replaced by noise.
+    .... 
     """
     
-    if os.path.isfile(region_filename):
-        
-        hdu_masked, mask = mask_hdu_with_ds9(hdu, region_filename)
-        
-        std = mad_std(hdu.data, ignore_nan=True)
-        mean = np.nanmean(hdu.data[hdu.data < std * 5])
-        # noise = np.random.normal(mean, std * np.sqrt(2), hdu_masked.data.shape)
-        noise = np.random.normal(0, std * np.sqrt(2), hdu_masked.data.shape)
-        noise = smooth_hdu_gaussian(noise)  # Ensure you have the smooth_hdu_gaussian function defined elsewhere in your code
-        hdu_masked.data[mask] = noise[mask]
-        print(f"[INFO] Overwrite file {output_filename}...")
-        hdu_masked.writeto(output_filename, overwrite=True)
+    # hdu_masked, mask = mask_hdu_with_ds9(hdu, region_filename)
+    hdu_masked = hdu.copy()
+    mask = hdu_mask.data>0
 
-        return(hdu_masked)
+    std = mad_std(hdu.data, ignore_nan=True)
+    mean = np.nanmean(hdu.data[hdu.data < std * 5])
 
-    else:
-        print(f"[INFO] Region file {region_filename} not found.")
-        print(f"[INFO] {output_filename} will *not* have star mask")
+    noise = np.random.normal(0, std, hdu_masked.data.shape)
+    noise = smooth_hdu_gaussian(noise * factor, sigma_x=sigma, sigma_y=sigma) 
+    hdu_masked.data[mask] = noise[mask]
+    
+    print(f"[INFO] Overwrite file {output_filename}...")
+    hdu_masked.writeto(output_filename, overwrite=True)
 
-        return(hdu)
+    return(hdu_masked)
 
 
 def process_halpha_muse(input_muse_filename, output_muse_filename):
@@ -351,7 +347,7 @@ def process_halpha_muse(input_muse_filename, output_muse_filename):
     return hdu_muse_ha
 
 
-def regrid(hdu_input, hdu_template, output_filename=None, conserve_flux=True):
+def regrid(hdu_input, hdu_template, output_filename=None, conserve_flux=True, order='bilinear'):
     """
     Reprojects an input FITS image to match the WCS of a template FITS image.
 
@@ -380,12 +376,12 @@ def regrid(hdu_input, hdu_template, output_filename=None, conserve_flux=True):
     print("[INFO] Performing image reprojection...")
     # data_output = reproject_interp(hdu_input, hdu_template.header, order=0, parallel=True)[0]
     # data_output = reproject_interp(hdu_input, hdu_template.header, order=0)[0]
-    data_output = reproject_interp(hdu_input, hdu_template.header)[0]
+    data_output = reproject_interp(hdu_input, hdu_template.header, order=order)[0]
     hdu_output = fits.PrimaryHDU(data_output, hdu_template.header)
     print("[INFO] Image reprojection complete.")
 
     if conserve_flux:
-        # Scale the output data to conserve flux (only if template pixel size is smaller than input)
+        # Scale the output data to conserve flux 
         print(f"[INFO] Scaling the output data to conserve flux with factor {(pixscale_template / pixscale_input):.2f}")
         hdu_output.data = hdu_output.data * (pixscale_template / pixscale_input)
         hdu_output.data = np.array(hdu_output.data, dtype=np.float32)
@@ -432,8 +428,9 @@ def smooth_image_with_beam(input_hdu, initial_resolution, desired_resolution, ou
     print(f"[INFO] Desired Resolution: {desired_resolution.to('arcsec'):.2f} arcsec")
     
     # Create the convolution kernel
+    convolution_beam = (desired_resolution.to('arcsec')**2 - initial_resolution.to('arcsec')**2)**0.5
     convolution_kernel = desired_beam.deconvolve(initial_beam).as_kernel(pixscale)
-    print("[INFO] Convolution kernel created.")
+    print(f"[INFO] Convolution kernel: {convolution_beam.to('arcsec'):.2f} arcsec")
 
     # Convolve the image with the kernel to smooth it
     print("[INFO] Performing image convolution...")
@@ -573,7 +570,7 @@ def process_intnegs_anchored_image(hdu_hst_anchored, output_filename):
     hdu_hst_anchored_intnegs.data = interpolate_replace_nans(hdu_hst_anchored_intnegs.data, kernel)
     hdu_hst_anchored_intnegs.data = interpolate_replace_nans(hdu_hst_anchored_intnegs.data, kernel)
 
-    mask = load_mask(os.path.dirname(output_filename))
+    mask = load_mask(os.path.dirname(output_filename), output_filename.split('/')[-1].split('_')[0])
     hdu_hst_anchored_intnegs.data[mask] = np.nan
 
     # Save the processed anchored HST image to the output file
@@ -583,7 +580,7 @@ def process_intnegs_anchored_image(hdu_hst_anchored, output_filename):
     return hdu_hst_anchored_intnegs
 
 
-def create_2d_hist_and_fit(hdu_input1, hdu_input2, hdu_input3, output_filename, showplot=False, region_filename='./starmask.reg'):
+def create_2d_hist_and_fit(hdu_input1, hdu_input2, hdu_input3, hdu_starmask, output_filename, showplot=True, scaled=True):
     '''
     This function creates a 2D histogram from two input HDUs (Header Data Unit). 
     It then fits a line to the data and applies the fitted line to modify the 
@@ -604,25 +601,40 @@ def create_2d_hist_and_fit(hdu_input1, hdu_input2, hdu_input3, output_filename, 
         The second input HDU modified by the line of best fit.
     '''
 
-    # Filter out NaN values from the data
-    
-    if os.path.isfile(region_filename):
-        
-        print(f"[INFO] Using star mask before making xy-fit")
+    data1 = hdu_input1.data
+    data2 = hdu_input2.data
 
-        hdu_input1, _ = mask_hdu_with_ds9(hdu_input1, region_filename)
-        hdu_input2, _ = mask_hdu_with_ds9(hdu_input2, region_filename)
-    else: 
-        print(f"[INFO] *No* star mask before making xy-fit")
+    rms = mad_std(data1, ignore_nan=True)
+    rms = mad_std(data1[data1<rms], ignore_nan=True)
+    mask_high = data1 > rms*20
+    mask_low = data1 > rms*5
+    mask1 = binary_dilation(mask_high, mask=mask_low, iterations=-1)
 
-    valid_indices = np.isfinite(hdu_input1.data) & np.isfinite(hdu_input2.data)
-    x_data = hdu_input1.data[valid_indices]
-    y_data = hdu_input2.data[valid_indices]
+    rms = mad_std(data2, ignore_nan=True)
+    rms = mad_std(data2[data2<rms], ignore_nan=True)
+    mask_high = data2 > rms*20
+    mask_low = data2 > rms*5
+    mask2 = binary_dilation(mask_high, mask=mask_low, iterations=-1)
 
-    x_minmask, x_maxmask = np.nanpercentile(x_data,90), np.nanpercentile(x_data,99.99)
-    y_minmask, y_maxmask = np.nanpercentile(y_data,90), np.nanpercentile(y_data,99.99)
-    # x_minmask, x_maxmask = np.nanpercentile(x_data,0.1), np.nanpercentile(x_data,100)
-    # y_minmask, y_maxmask = np.nanpercentile(y_data,0.1), np.nanpercentile(y_data,100)
+    data1[~mask1] = np.nan
+    data2[~mask2] = np.nan
+
+    mask_stars = hdu_starmask.data!=0
+    data1[mask_stars] = np.nan
+    data2[mask_stars] = np.nan
+
+    valid_indices = np.isfinite(data1) & np.isfinite(data2)
+    x_data = data1[valid_indices]
+    y_data = data2[valid_indices]
+
+    xpmin = 0
+    ypmin = 0
+    xpmax = 100
+    ypmax = 100
+
+    x_minmask, x_maxmask = np.nanpercentile(x_data,xpmin), np.nanpercentile(x_data,xpmax)
+    y_minmask, y_maxmask = np.nanpercentile(y_data,ypmin), np.nanpercentile(y_data,ypmax)
+
     print(f"[INFO] MUSE mask lims: %0.1f %0.1f" %(x_minmask, x_maxmask))
     print(f"[INFO] HST mask lims: %0.1f %0.1f" %(y_minmask, y_maxmask))
     x_mask = ((x_data>x_minmask) & (x_data<x_maxmask))
@@ -632,29 +644,58 @@ def create_2d_hist_and_fit(hdu_input1, hdu_input2, hdu_input3, output_filename, 
     y_data = y_data[x_mask&y_mask]
 
     # Calculate a line of best fit for the data
+    # w = y_data/rms
     slope, intercept = np.polyfit(x_data, y_data, 1)
-    x_fit = np.linspace(np.min(x_data), np.max(x_data), 100)
+    x_fit = np.linspace(np.min(x_data), np.max(x_data), 10000)
     y_fit = slope * x_fit + intercept
     print(f"[INFO] xy-fit --- slope: {slope}, intercept: {intercept}")
 
-    if showplot: 
-        # Create a 2D histogram plot using the filtered data
+    if showplot:
+
         fig, ax = plt.subplots(figsize=(8, 8))
         ax.set_aspect('equal')
 
-        hist = ax.hist2d(x_data, y_data, bins=50, cmap='turbo', norm=colors.LogNorm())
-        cbar = plt.colorbar(hist[3], ax=ax, label='Counts')
-        ax.set_xlabel('Input1 Data')
-        ax.set_ylabel('Input2 Data')
-        ax.set_title('2D Histogram Plot')
-        ax.plot(x_fit, y_fit, color='red', linewidth=2, label=f'y = {slope:.2f}x + {intercept:.2f}')
-        ax.legend()
-        ax.grid(True)
+        # hist = ax.hist2d(x_data, y_data, bins=100, cmap='Blues', norm=colors.LogNorm())
+        ax.scatter(x_data, y_data, ec='black', fc='none', alpha=0.1)
+        ax.plot(x_fit, y_fit, color='C0', linewidth=2, label=f'y = {slope:.2f}x + {intercept:.2f}')
 
-    # Apply the calculated line of best fit to the second input data and save it as a new FITS file
-    hdu_fit_anchored = hdu_input3.copy()
-    hdu_fit_anchored.data = (hdu_fit_anchored.data - intercept) / slope
-    hdu_fit_anchored.writeto(output_filename, overwrite=True)
+        # divider = make_axes_locatable(ax)
+        # cax = divider.append_axes("right", size="5%", pad=0.05)
+        # cbar = plt.colorbar(hist[3], cax=cax, label='Counts')
+
+        ax.set_xlabel('MUSE (MUSE) [erg/s/cm-2/pix]')
+        ax.set_ylabel('HST (smoothed, regrid) [erg/s/cm-2/pix]')
+        ax.legend()
+        ax.grid(True, ls=':', color='k', alpha=0.2)
+
+        plt.tight_layout()
+        fig.savefig(output_filename.replace('.fits', '.png'), bbox_inches='tight')
+
+        ax.set_xscale('log')
+        ax.set_yscale('log')
+
+        plt.tight_layout()
+        fig.savefig(output_filename.replace('.fits', '_log.png'), bbox_inches='tight')
+
+    if scaled: 
+
+        wcs_input1 = wcs.WCS(hdu_input1.header)
+        wcs_input3 = wcs.WCS(hdu_input3.header)
+        pixscale_input1 = wcs.utils.proj_plane_pixel_area(wcs_input1.celestial)
+        pixscale_input3 = wcs.utils.proj_plane_pixel_area(wcs_input3.celestial)
+
+        pixscale_ratio = (pixscale_input3 / pixscale_input1)
+        print(f"[INFO] xy-fit scaled --- slope: {slope}, intercept: {intercept*pixscale_ratio}")
+
+        hdu_fit_anchored = hdu_input3.copy()
+        hdu_fit_anchored.data = (hdu_fit_anchored.data - (intercept*pixscale_ratio)) / slope
+        hdu_fit_anchored.writeto(output_filename, overwrite=True)
+
+    else: 
+
+        hdu_fit_anchored = hdu_input3.copy()
+        hdu_fit_anchored.data = (hdu_fit_anchored.data - intercept) / slope
+        hdu_fit_anchored.writeto(output_filename, overwrite=True)
 
     # Return the modified HDU object
     return(hdu_fit_anchored)
@@ -691,7 +732,7 @@ def process_anchored_fit_image(hdu_hst_anchored, output_filename, sigma=5):
     hdu_hst_anchored_intnegs.data = interpolate_replace_nans(hdu_hst_anchored_intnegs.data, kernel)
     hdu_hst_anchored_intnegs.data = interpolate_replace_nans(hdu_hst_anchored_intnegs.data, kernel)
 
-    mask = load_mask(os.path.dirname(output_filename))
+    mask = load_mask(os.path.dirname(output_filename), output_filename.split('/')[-1].split('_')[0])
     hdu_hst_anchored_intnegs.data[mask] = np.nan
 
     # Save the processed anchored HST image to the output file
