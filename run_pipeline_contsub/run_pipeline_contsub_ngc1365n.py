@@ -6,7 +6,7 @@
 ###### Update as instructed
 
 # Remove everything and start again? 
-start_again = False
+start_again = True
 
 # What to run?
 run_contsub = True
@@ -15,11 +15,11 @@ run_cosmics = False
 run_cosmicsnnet = False 
 
 # Define the galaxy
-galaxy = 'ngc628'
-galaxy_field = 'ngc628c'
+galaxy = 'ngc1365'
+galaxy_field = 'ngc1365n'
 
 # Define the filters
-halpha_filter = 'f658n'
+halpha_filter = 'f657n'
 cont1_filter = 'f555w'
 cont2_filter = 'f814w'
 
@@ -47,6 +47,4 @@ contsub_run.run_pipeline(start_again=start_again,
                             cont2_filter = cont2_filter,
                             inputdir_hst = inputdir_hst,
                             inputdir_muse = inputdir_muse,
-                            outputdir = outputdir, 
-                            threshold=0.25, 
-                            dilation_iterations=5)
+                            outputdir = outputdir)

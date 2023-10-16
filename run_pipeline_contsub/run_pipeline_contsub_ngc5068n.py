@@ -15,8 +15,8 @@ run_cosmics = False
 run_cosmicsnnet = False 
 
 # Define the galaxy
-galaxy = 'ngc628'
-galaxy_field = 'ngc628c'
+galaxy = 'ngc5068'
+galaxy_field = 'ngc5068n'
 
 # Define the filters
 halpha_filter = 'f658n'
@@ -47,6 +47,4 @@ contsub_run.run_pipeline(start_again=start_again,
                             cont2_filter = cont2_filter,
                             inputdir_hst = inputdir_hst,
                             inputdir_muse = inputdir_muse,
-                            outputdir = outputdir, 
-                            threshold=0.25, 
-                            dilation_iterations=5)
+                            outputdir = outputdir)

@@ -22,10 +22,14 @@ halpha_filter = 'f658n'
 cont1_filter = 'f555w'
 cont2_filter = 'f814w'
 
+# Define root directory
+roordir = '/Users/abarnes/Dropbox/work/Smallprojects/galaxies/data/'
+roordir = roordir+'%s' %galaxy
+
 # Define the directories
-inputdir_hst = '../hst/'
-inputdir_muse = '../muse/'
-outputdir = '../hst_contsub/'
+inputdir_hst = '%s/hst/' %roordir
+inputdir_muse = '%s/muse/' %roordir
+outputdir = '%s/hst_contsub/' %roordir
 
 ###### End of user inputs
 # ----------------------------

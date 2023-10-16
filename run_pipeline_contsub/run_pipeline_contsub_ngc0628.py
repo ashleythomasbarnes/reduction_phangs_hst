@@ -16,7 +16,7 @@ run_cosmicsnnet = False
 
 # Define the galaxy
 galaxy = 'ngc628'
-galaxy_field = 'ngc628c'
+galaxy_field = 'ngc628'
 
 # Define the filters
 halpha_filter = 'f658n'

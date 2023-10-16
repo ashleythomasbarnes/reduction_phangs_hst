@@ -11,21 +11,26 @@ start_again = True
 # What to run?
 run_contsub = True
 run_contsub_wmuse = True
-run_cosmics = True
-run_cosmicsnnet = True 
+run_cosmics = False
+run_cosmicsnnet = False 
 
 # Define the galaxy
 galaxy = 'ngc5068'
+galaxy_field = 'ngc5068s'
 
 # Define the filters
 halpha_filter = 'f658n'
 cont1_filter = 'f555w'
 cont2_filter = 'f814w'
 
+# Define root directory
+roordir = '/Users/abarnes/Dropbox/work/Smallprojects/galaxies/data/'
+roordir = roordir+'%s' %galaxy
+
 # Define the directories
-inputdir_hst = '../hst/'
-inputdir_muse = '../muse/'
-outputdir = '../hst_contsub/'
+inputdir_hst = '%s/hst/' %roordir
+inputdir_muse = '%s/muse/' %roordir
+outputdir = '%s/hst_contsub/' %roordir
 
 ###### End of user inputs
 # ----------------------------
@@ -36,7 +41,7 @@ contsub_run.run_pipeline(start_again=start_again,
                             run_contsub_wmuse = run_contsub_wmuse,
                             run_cosmics = run_cosmics,
                             run_cosmicsnnet = run_cosmicsnnet,
-                            galaxy = galaxy,
+                            galaxy = galaxy_field,
                             halpha_filter = halpha_filter,
                             cont1_filter = cont1_filter,
                             cont2_filter = cont2_filter,

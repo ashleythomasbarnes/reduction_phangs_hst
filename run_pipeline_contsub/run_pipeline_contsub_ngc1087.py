@@ -15,17 +15,21 @@ run_cosmics = True
 run_cosmicsnnet = True 
 
 # Define the galaxy
-galaxy = 'ngc1365'
+galaxy = 'ngc1087'
 
 # Define the filters
 halpha_filter = 'f657n'
 cont1_filter = 'f555w'
 cont2_filter = 'f814w'
 
+# Define root directory
+roordir = '/Users/abarnes/Dropbox/work/Smallprojects/galaxies/data/'
+roordir = roordir+'%s' %galaxy
+
 # Define the directories
-inputdir_hst = '../hst/'
-inputdir_muse = '../muse/'
-outputdir = '../hst_contsub/'
+inputdir_hst = '%s/hst/' %roordir
+inputdir_muse = '%s/muse/' %roordir
+outputdir = '%s/hst_contsub/' %roordir
 
 ###### End of user inputs
 # ----------------------------
