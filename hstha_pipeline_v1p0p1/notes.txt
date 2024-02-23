@@ -1,0 +1,2 @@
+jupyter nbconvert --inplace --execute run_pipeline_contsub*.ipynb
+jupyter nbconvert --inplace --execute run_pipeline_postprocess*.ipynb
