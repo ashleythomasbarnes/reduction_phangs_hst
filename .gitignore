@@ -2,3 +2,4 @@
 .DS_Store
 *.pyc
 scratch/run_pipeline_contsub_qa.ipynb
+*.fits
