@@ -52,9 +52,12 @@ def get_Jy_2_ergcm2sA(hdu, photplam):
 
 def get_ergcm2sA_2_ergcm2s(hdu, photbw):
 
-    data = hdu.data.copy()
-    data_conv = data * photbw
-    hdu.data = np.array(data_conv, dtype=np.float32)
-    hdu.header['BUNIT'] = ('erg/s/cm2/pixel', '1e-20 erg/s/cm2')
+    hdu_new = hdu.copy()
 
-    return(hdu)
+    data = hdu_new.data
+    data_conv = data * photbw
+
+    hdu_new.data = np.array(data_conv, dtype=np.float32)
+    hdu_new.header['BUNIT'] = ('erg/s/cm2/pixel', '1e-20 erg/s/cm2')
+
+    return(hdu_new)
