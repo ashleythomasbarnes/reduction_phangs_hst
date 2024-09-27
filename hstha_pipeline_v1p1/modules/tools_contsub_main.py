@@ -85,7 +85,8 @@ def get_contsub(hdu_halpha, hdu_cont1, hdu_cont2,
 
 def get_contsub_err(hdu_halpha, hdu_cont1, hdu_cont2, 
                 hdu_halpah_err=None, hdu_cont1_err=None, hdu_cont2_err=None,
-                photplam_halpha=None, photplam_cont1=None, photplam_cont2=None):
+                photplam_halpha=None, photplam_cont1=None, photplam_cont2=None,
+                relwt_cont1=1, relwt_cont2=1, relwt_cont=1):
 
     """
     Perform continuum subtraction on H-alpha image data using two continuum images WITH associated error.
@@ -107,6 +108,10 @@ def get_contsub_err(hdu_halpha, hdu_cont1, hdu_cont2,
                                         If None, it is extracted from the HDU header.
     photplam_cont2 (float, optional): Photometric wavelength of the second continuum image. 
                                         If None, it is extracted from the HDU header.
+    relwt_cont1 (float, optional): Relative weight of the first continuum image. Default is 1.
+    relwt_cont2 (float, optional): Relative weight of the second continuum image. Default is 1.
+    relwt_cont (float, optional): Relative weight of the combined continuum image. Default is 1.
+                                        
 
     Returns:
     tuple: A tuple containing:
@@ -139,8 +144,8 @@ def get_contsub_err(hdu_halpha, hdu_cont1, hdu_cont2,
     data_cont1err = np.abs(data_cont1relerr / np.log(10))
     data_cont2err = np.abs(data_cont2relerr / np.log(10))
 
-    data_cont1_wt = data_cont1 * wt_cont1
-    data_cont2_wt = data_cont2 * wt_cont2
+    data_cont1_wt = data_cont1 * wt_cont1 * relwt_cont1
+    data_cont2_wt = data_cont2 * wt_cont2 * relwt_cont2
     data_cont1err_wt = data_cont1err * wt_cont1
     data_cont2err_wt = data_cont2err * wt_cont2
 
@@ -151,8 +156,10 @@ def get_contsub_err(hdu_halpha, hdu_cont1, hdu_cont2,
     data_cont[np.isnan(data_cont)] = 0
     data_conterr[np.isnan(data_conterr)] = 0
 
-    data_contsub = data_halpha - data_cont
+    data_contsub = data_halpha - (data_cont * relwt_cont)
     data_contsuberr = np.sqrt(data_halphaerr**2 + data_conterr**2)
+
+    data_contsuberr[np.isnan(data_contsub)] = np.nan
 
     hdu_halpha_cont = fits.PrimaryHDU(data_cont, header=hdu_halpha.header)
     hdu_halpha_contsub = fits.PrimaryHDU(data_contsub, header=hdu_halpha.header)

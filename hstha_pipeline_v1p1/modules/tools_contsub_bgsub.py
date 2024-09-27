@@ -50,6 +50,9 @@ def get_bgsub(hdu, box_size=(50, 50), filter_size=(25, 25), plot=False, want_bg=
     hdu_bg = fits.PrimaryHDU(data_bg, header=hdr)
     hdu_bgsub = fits.PrimaryHDU(data_bgsub, header=hdr)
 
+    hdu_bg.data = np.array(hdu_bg.data, dtype=np.float32)
+    hdu_bgsub.data = np.array(hdu_bgsub.data, dtype=np.float32)
+
     if want_bg:
         return hdu_bg, hdu_bgsub
     else:
