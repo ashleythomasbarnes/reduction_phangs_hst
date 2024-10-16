@@ -22,10 +22,20 @@ def get_hdu(rootdir, filename, hdu_id=0, return_filename=False):
         return(hdu)
 
 
-def write_hdu(hdu, rootdir, filename, appdir='hst_contsub/'):
+def write_hdu(hdu, rootdir, filename, appdir='hst_contsub/', compress=False):
+
     filename_full = rootdir+appdir+filename
-    print(filename_full)
-    hdu.writeto(filename_full, overwrite=True)
+
+    if not compress:
+        print('Writing: %s' %filename_full)
+        hdu.writeto(filename_full, overwrite=True)
+
+    if compress:
+        print('Compressing: %s' %filename_full)
+        hdu.writeto(filename_full, overwrite=True)
+        filename_full = filename_full
+        os.system('tar czf %s.gz %s' %(filename_full, filename_full))
+        os.system('rm %s' %filename_full)
 
 
 def make_paths(rootdir, appdir='hst_contsub/'):

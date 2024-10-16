@@ -2,6 +2,7 @@ import astropy.units as u
 import numpy as np
 import warnings 
 import sys
+import os
 sys.path.append('./../')
 sys.path.append('./../modules/')
 warnings.filterwarnings('ignore')
