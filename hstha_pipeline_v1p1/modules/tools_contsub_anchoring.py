@@ -101,7 +101,7 @@ def get_anchoring_offset(hdu1, hdu2, hdu3, hdu_stars, filter='', rootdir='./', a
     data2 = data2[x_mask&y_mask]
 
     # Get bins with equal number of points in each bin 
-    min_val, max_val = np.percentile(data1, [0, 65]) 
+    min_val, max_val = np.percentile(data1, [0, 100]) 
     bin_values = get_bins(data1, data2, 25, equal_spaced=False, min_val=min_val, max_val=max_val)
 
     # Fit binned data
@@ -183,7 +183,7 @@ def get_anchoring_offset(hdu1, hdu2, hdu3, hdu_stars, filter='', rootdir='./', a
 
     return(hdu3, hdu2, table_fit)
 
-def get_anchoring_slope(hdu1, hdu2, hdu3, hdu_neb, filter='', rootdir='./', appdir='hst_contsub/', make_plots=True):
+def get_anchoring_slope(hdu1, hdu2, hdu3, hdu_stars, filter='', rootdir='./', appdir='hst_contsub/', make_plots=True):
 
     ### 
     hdu1 = hdu1.copy()
@@ -199,29 +199,33 @@ def get_anchoring_slope(hdu1, hdu2, hdu3, hdu_neb, filter='', rootdir='./', appd
     data1[(mask_zero1&mask_zero2)] = np.nan
     data2[(mask_zero1&mask_zero2)] = np.nan
 
-    # Mask with nebmask 
-    mask_neb = hdu_neb.data==-1
-    data1[mask_neb] = np.nan
-    data2[mask_neb] = np.nan
+    # Mask with starmask 
+    mask_stars = hdu_stars.data!=0
+    data1[mask_stars] = np.nan
+    data2[mask_stars] = np.nan
 
     valid_indices = np.isfinite(data1) & np.isfinite(data2)
     data1 = data1[valid_indices]
     data2 = data2[valid_indices]
 
     # Mask to only lowest value points 
-    x_per = np.percentile(data1, [0.1, 99.9])
-    y_per = np.percentile(data2, [0.1, 99.9])
+    percentile_1_x = np.percentile(data1, 1)
+    percentile_99_x = np.percentile(data1, 99)
+    percentile_1_y = np.percentile(data2, 1)
+    percentile_99_y = np.percentile(data2, 99)
 
-    x_mask = (data1>x_per[0])&(data1<x_per[1])
-    y_mask = (data2>y_per[0])&(data2<y_per[1])
+    mask_percentile_x = (data1 >= percentile_1_x) & (data1 <= percentile_99_x)
+    mask_percentile_y = (data2 >= percentile_1_y) & (data2 <= percentile_99_y)
+    mask_percentile = mask_percentile_x & mask_percentile_y
 
-    data1 = data1[x_mask&y_mask]
-    data2 = data2[x_mask&y_mask]
+    data1 = data1[mask_percentile]
+    data2 = data2[mask_percentile]
 
     # Get bins with equal number of points in each bin 
-    min_val, max_val = np.percentile(data1, [10, 90]) 
+    # min_val, max_val = np.percentile(data1, [10, 90]) 
     # bin_values = get_bins(data1, data2, 20, equal_spaced=True, min_val=min_val, max_val=max_val)
-    bin_values = get_bins(data1, data2, 20, equal_spaced=False, min_val=min_val, max_val=max_val)
+    min_val, max_val = np.nanpercentile(data1, [0, 100]) 
+    bin_values = get_bins(data1, data2, 20, equal_spaced=True, min_val=min_val, max_val=max_val)
 
     # Fit binned data
     model_poly = models.Polynomial1D(degree=1)
@@ -299,6 +303,123 @@ def get_anchoring_slope(hdu1, hdu2, hdu3, hdu_neb, filter='', rootdir='./', appd
         plt.close('all')
 
     return(hdu3, hdu2, table_fit)
+
+# def get_anchoring_slope(hdu1, hdu2, hdu3, hdu_neb, filter='', rootdir='./', appdir='hst_contsub/', make_plots=True):
+
+#     ### 
+#     hdu1 = hdu1.copy()
+#     hdu2 = hdu2.copy()
+#     hdu3 = hdu3.copy()
+#     data1 = hdu1.data.copy()
+#     data2 = hdu2.data.copy()
+#     data3 = hdu3.data.copy()
+
+#     # Mask zeros 
+#     mask_zero1 = data1==0
+#     mask_zero2 = data2==0
+#     data1[(mask_zero1&mask_zero2)] = np.nan
+#     data2[(mask_zero1&mask_zero2)] = np.nan
+
+#     # Mask with nebmask 
+#     mask_neb = hdu_neb.data==-1
+#     data1[mask_neb] = np.nan
+#     data2[mask_neb] = np.nan
+
+#     valid_indices = np.isfinite(data1) & np.isfinite(data2)
+#     data1 = data1[valid_indices]
+#     data2 = data2[valid_indices]
+
+#     # Mask to only lowest value points 
+#     x_per = np.percentile(data1, [0.1, 99.9])
+#     y_per = np.percentile(data2, [0.1, 99.9])
+
+#     x_mask = (data1>x_per[0])&(data1<x_per[1])
+#     y_mask = (data2>y_per[0])&(data2<y_per[1])
+
+#     data1 = data1[x_mask&y_mask]
+#     data2 = data2[x_mask&y_mask]
+
+#     # Get bins with equal number of points in each bin 
+#     min_val, max_val = np.percentile(data1, [10, 90]) 
+#     # bin_values = get_bins(data1, data2, 20, equal_spaced=True, min_val=min_val, max_val=max_val)
+#     bin_values = get_bins(data1, data2, 20, equal_spaced=False, min_val=min_val, max_val=max_val)
+
+#     # Fit binned data
+#     model_poly = models.Polynomial1D(degree=1)
+#     fitter_poly = fitting.LinearLSQFitter() 
+#     best_fit_poly_bins = fitter_poly(model_poly, bin_values[0], bin_values[1])
+#     intercept_bins, slope_bins = best_fit_poly_bins.parameters
+
+#     def func_fixed(x, a):
+#         # For fixed offeset - y = xa + 0
+#         return a*x
+
+#     best_fitfixed_bins, _ = curve_fit(func_fixed, bin_values[0], bin_values[1])
+#     slopefixed_bins = best_fitfixed_bins[0]
+
+#     x_fit = np.linspace(-1e3, np.nanmax(data2), 10000)
+#     y_fit_bins = slope_bins * x_fit + intercept_bins
+#     ###
+
+#     # Extract the WCS information from the input and template headers
+#     wcs1 = wcs.WCS(hdu1.header)
+#     wcs3 = wcs.WCS(hdu3.header)
+#     pixscale1 = wcs.utils.proj_plane_pixel_area(wcs1.celestial)
+#     pixscale3 = wcs.utils.proj_plane_pixel_area(wcs3.celestial)
+
+#     pixscale_ratio = (pixscale3 / pixscale1)
+#     # hdu3.data = (hdu3.data - (intercept_bins*pixscale_ratio)) / slope_bins # HST full resolution 
+#     # hdu2.data = (hdu2.data - (intercept_bins)) / slope_bins # HST smoothed
+#     hdu3.data = hdu3.data / slope_bins # HST full resolution 
+#     hdu2.data = hdu2.data / slope_bins # HST smoothed
+
+#     fit = [filter, slope_bins, intercept_bins, intercept_bins*pixscale_ratio, slopefixed_bins]
+#     table_fit = Table(np.array(fit), names=['filter', 'slope_bins', 'intercept_lowres', 'intercept_highres', 'slopefixed_bins'])
+#     #### 
+
+#     if make_plots: 
+
+#         fig = plt.figure(figsize=(10, 5))
+#         ax1 = fig.add_subplot(1, 2, 1)
+#         ax2 = fig.add_subplot(1, 2, 2)
+
+#         for ax in [ax1,ax2]:
+
+#             #data
+#             ax.scatter(data1, data2, c='k', alpha=0.01, s=1, rasterized=True)
+
+#             #bins 
+#             ax.scatter(bin_values[0], bin_values[1], fc='none', ec='C0', alpha=1, s=30, zorder=5)
+#             ax.plot(bin_values[0], bin_values[1], c='C0', alpha=1, zorder=5)
+
+#             # fits 
+#             offset = (0 - (intercept_bins)) / slope_bins
+#             ax.plot(x_fit, y_fit_bins, color='C0', linewidth=2, linestyle=':', label=f'y = {slope_bins:.4f}x + {intercept_bins:.4g}')
+#             ax.plot(x_fit, x_fit, 'k', linewidth=2, linestyle=':', label=f'y = x')
+#             ax.plot([offset, offset], [-100,0], color='C0', linewidth=2, linestyle=':', label=f'Offset = {offset:.4g}')
+
+#             for f in [0.1,0.5,2,10]:
+#                 ax.plot(x_fit, x_fit*f, 'k', linewidth=2, linestyle='--', alpha=0.1)
+
+#             ax.set_xlabel('Flux (MUSE Ha) [erg/s/cm-2/pix]')
+#             ax.set_ylabel('Flux (MUSE contsub) [erg/s/cm-2/pix]')
+#             ax.legend(title=filter, loc='upper left')
+#             ax.grid(True, ls=':', color='k', alpha=0.2)
+
+#         ax1.set_xlim(np.nanpercentile(data1, [0,99]))
+#         ax1.set_ylim(np.nanpercentile(data2, [0,99]))
+
+#         ax2.set_xlim(np.nanpercentile(data1[data1>0], [0.01,99.99]))
+#         ax2.set_ylim(np.nanpercentile(data2[data2>0], [0.01,99.99]))
+
+#         ax2.set_xscale('log')
+#         ax2.set_yscale('log')
+
+#         plt.tight_layout()
+#         fig.savefig(rootdir+appdir+'/figs/fit_%s.png' %filter, bbox_inches='tight')
+#         plt.close('all')
+
+#     return(hdu3, hdu2, table_fit)
 
 # def get_anchoring_slope(hdu1, hdu2, hdu3, hdu_neb, filter='', rootdir='./', appdir='hst_contsub/', make_plots=True):
 

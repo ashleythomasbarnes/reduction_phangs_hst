@@ -6,7 +6,8 @@ import os
 import warnings 
 from scipy.ndimage import binary_closing
 warnings.filterwarnings('ignore')
-
+from astropy.wcs import WCS
+from datetime import datetime
 
 def get_hdu(rootdir, filename, hdu_id=0, return_filename=False):
     filename_full = glob(rootdir+filename)[0]
@@ -25,6 +26,7 @@ def get_hdu(rootdir, filename, hdu_id=0, return_filename=False):
 def write_hdu(hdu, rootdir, filename, appdir='hst_contsub/', compress=False):
 
     filename_full = rootdir+appdir+filename
+    roodir_full = rootdir+appdir
 
     if not compress:
         print('Writing: %s' %filename_full)
@@ -34,7 +36,7 @@ def write_hdu(hdu, rootdir, filename, appdir='hst_contsub/', compress=False):
         print('Compressing: %s' %filename_full)
         hdu.writeto(filename_full, overwrite=True)
         filename_full = filename_full
-        os.system('tar czf %s.gz %s' %(filename_full, filename_full))
+        os.system('tar czf %s.gz -C %s %s' %(filename_full, roodir_full, filename))
         os.system('rm %s' %filename_full)
 
 
@@ -150,3 +152,27 @@ def get_covmask(hdu_hst_f555w, hdu_hst_f65Xn, hdu_hst_f814w):
     hdu_hst_f814w.data[~mask_close] = np.nan
 
     return(hdu_hst_f555w, hdu_hst_f65Xn, hdu_hst_f814w)
+
+
+def clean_header(hdu):
+
+    hdu = hdu.copy() 
+    header = hdu.header
+    wcs = WCS(header)
+
+    header_new = wcs.to_header()
+
+    header_new.set('SIMPLE', True, 'conforms to FITS standard', before=0)
+    header_new.set('WCSAXES', 2, 'Number of coordinate axes', after=2)
+
+    header_new['BUNIT'] = header['BUNIT']
+    header_new.comments['BUNIT'] = header.comments['BUNIT']
+
+    header_new['AUTHOR'] = 'Ashley Thomas Barnes (ESO)'
+
+    now = datetime.now().strftime("%I:%M%p on %B %d, %Y")
+    header_new['HISTORY'] = f'Created - {now}'
+
+    hdu.header = header_new
+
+    return(hdu)
