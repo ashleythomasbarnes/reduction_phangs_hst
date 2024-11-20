@@ -391,6 +391,14 @@ class PyHSTHAContSub:
         self.get_sampletable_info()
         self.get_extinction()
 
+    def initial_pipeline_noMUSE(self): 
+
+        self.load_data_hst()
+        self.load_data_hst_inv()
+        self.get_bandpass_info()
+        self.get_sampletable_info()
+        self.get_extinction()
+
     def subtract_continuum_all(self):
 
         self.subtract_continuum_noerr_muse()
@@ -418,3 +426,18 @@ class PyHSTHAContSub:
         self.convert_units_to_arcsec2()
         self.save_hdu_files()
         self.save_fit_tables()
+
+    def continuum_subtraction_pipeline_noMUSE(self):
+        
+        self.get_clean_paths()
+        self.load_and_preprocess_errors()
+        self.preprocess_hst_data()
+        self.apply_covmask()
+        self.convert_units()
+        self.correct_extinction()
+        self.subtract_continuum_witherr_hst()
+        self.convert_to_physical_units()
+        self.generate_map_plots()
+        self.clean_headers()
+        self.convert_units_to_arcsec2()
+        self.save_hdu_files(nomuse=True)
