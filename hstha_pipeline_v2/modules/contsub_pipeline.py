@@ -1,16 +1,4 @@
-from astropy.table import QTable
-import extinction
-
-from tools_contsub_main import *
-from tools_contsub_misc import *
-from tools_contsub_units import *
-from tools_contsub_plots import *
-from tools_contsub_anchoring import * 
-from tools_contsub_smoothregrid import * 
-from tools_contsub_postprocess import * 
-from tools_contsub_err import *
-from tools_contsub_bgsub import *
-from tools_contsub_extinction import *
+from tools_imports import *
 
 class PyHSTHAContSub:
     def __init__(self, galaxy, rootdir, filters, instruments, 
@@ -57,6 +45,7 @@ class PyHSTHAContSub:
         self.cr_threshold = cr_threshold
         self.cr_dilation_iterations = cr_dilation_iterations
 
+
     def load_data_hst(self):
         # Load HDU files and store them in self.hdu_data
         self.hdu_data['hst_narrow'] = get_hdu(self.rootdir, f"hst/{self.galaxy.lower()}*_*{self.instrument_narrow.lower()}_*{self.filter_narrow.lower()}*_exp_drc_sci.fits")
@@ -78,6 +67,8 @@ class PyHSTHAContSub:
     def load_data_muse_halpha(self):
         self.hdu_data['muse_DAP'] = get_hdu(self.rootdir, f'muse/{self.galaxy_muse.upper()}*_MAPS.fits', 'all')
         self.hdu_data['muse_halpha'] = self.hdu_data['muse_DAP']['HA6562_FLUX']
+        self.hdu_data['muse_halpha'] = fits.PrimaryHDU(self.hdu_data['muse_halpha'].data, self.hdu_data['muse_halpha'].header)
+        self.hdu_data['muse_halpha'].header.set('EQUINOX',  2000.0, '[yr] Equinox of equatorial coordinates') 
 
     def load_data_muse_stars(self):
         self.hdu_data['muse_stars'] = get_hdu(self.rootdir, f"muse/{self.galaxy_muse.upper()}_starmask.fits")
@@ -284,9 +275,12 @@ class PyHSTHAContSub:
         Clean the headers of the scaled H-alpha HDUs.
         """
         for key in ['hst_contsub_halpha', 'hst_contsub_halpha_err', 
-                    'hst_contsub', 'hst_contsub_err']:
+                    'hst_contsub', 'hst_contsub_err', 
+                    'muse_halpha', 'muse_contsub_halpha']:
+            
             if key in self.hdu_data:
                 self.hdu_data[key] = clean_header(self.hdu_data[key])
+
 
     def convert_units_to_arcsec2(self):
         """
@@ -294,12 +288,55 @@ class PyHSTHAContSub:
         """
         # Convert scaled H-alpha and error HDUs to arcseconds²
         for key in ['hst_contsub_halpha', 'hst_contsub_halpha_err', 
-                    'hst_contsub', 'hst_contsub_err']:
+                    'hst_contsub', 'hst_contsub_err', 
+                    'muse_halpha', 'muse_contsub_halpha']:
             if key in self.hdu_data:
                 key_as = f'{key}_as'
                 self.hdu_data[key_as] = convert_perpix_to_perarcsec(self.hdu_data[key])
 
-    def save_hdu_files(self, compress=False, halpha_only=False, all=False, nomuse=False):
+
+    def convert_to_cdelt(self):
+        """
+        Convert PCi_j to CDELTi 
+        """
+        for key_ in ['hst_contsub_halpha', 'hst_contsub_halpha_err', 
+                    'hst_contsub', 'hst_contsub_err', 
+                    'muse_halpha', 'muse_contsub_halpha']:
+
+            for key in [key_, f'{key_}_as']:
+
+                header = self.hdu_data[key].header
+                PC1_1 = header['PC1_1']
+                PC2_2 = header['PC2_2']
+                CDELT1 = header['CDELT1']
+                CDELT2 = header['CDELT2']
+
+                if 'PC2_1' not in header:
+                    header['PC2_1'] = 0
+                    header['PC1_2'] = 0
+
+                PC2_1 = header['PC2_1']
+                PC1_2 = header['PC1_2']
+
+                if CDELT1 == 1:
+                    CDELT1 = PC1_1
+                    CDELT2 = PC2_2
+                    
+                    PC1_2 = PC1_2/PC1_1
+                    PC2_1 = PC2_1/PC2_2
+                    PC1_1 = 1
+                    PC2_2 = 1
+
+                header['PC1_1'] = PC1_1
+                header['PC1_2'] = PC1_2
+                header['PC2_1'] = PC2_1
+                header['PC2_2'] = PC2_2
+                header['CDELT1'] = CDELT1
+                header['CDELT2'] = CDELT2
+
+                self.hdu_data[key].header = header
+
+    def save_hdu_files(self, compress=False, save_all=False, save_nomuse=False, save_ha_only=False):
         """
         Save HDU files to disk.
 
@@ -308,28 +345,19 @@ class PyHSTHAContSub:
         all (bool): Whether to save all files or just the key files.
         """
 
-        if halpha_only: 
-            # Define files to save if `all` is False (default)
-            save_map = {
-                f'{self.galaxy}_hst_ha.fits': 'hst_contsub_halpha',
-                f'{self.galaxy}_hst_ha_err.fits': 'hst_contsub_halpha_err',
-                f'{self.galaxy}_hst_ha_as2.fits': 'hst_contsub_halpha_as',
-                f'{self.galaxy}_hst_ha_err_as2.fits': 'hst_contsub_halpha_err_as',
-            }
+        if not (save_ha_only | save_all | save_nomuse):
+            print('Not saving anything...')
+            return
 
-        if nomuse:
-            save_map = {
-                f'{self.galaxy}_hst_contsub.fits': 'hst_contsub',
-                f'{self.galaxy}_hst_contsub_err.fits': 'hst_contsub_err',
-            }
-
-        if all: 
+        elif save_all: 
             # Define all files to save if `all` is True
             save_map = {
                 f'{self.galaxy}_hst_ha.fits': 'hst_contsub_halpha',
                 f'{self.galaxy}_hst_ha_err.fits': 'hst_contsub_halpha_err',
                 f'{self.galaxy}_hst_ha_as2.fits': 'hst_contsub_halpha_as',
                 f'{self.galaxy}_hst_ha_err_as2.fits': 'hst_contsub_halpha_err_as',
+                f'{self.galaxy}_muse_ha_as2.fits': 'muse_halpha_as',
+                f'{self.galaxy}_muse_contsub_ha_as2.fits': 'muse_contsub_halpha_as',
                 f'{self.galaxy}_hst_{self.filter_broad1}_smre.fits': 'hst_broad1_smre',
                 f'{self.galaxy}_hst_{self.filter_narrow}_smre.fits': 'hst_narrow_smre',
                 f'{self.galaxy}_hst_{self.filter_broad2}_smre.fits': 'hst_broad2_smre',
@@ -353,6 +381,22 @@ class PyHSTHAContSub:
                 f'{self.galaxy}_muse_contsub_ha.fits': 'muse_contsub_halpha',
             }
 
+        elif save_ha_only: 
+            # Define files to save if `all` is False (default)
+            save_map = {
+                f'{self.galaxy}_hst_ha.fits': 'hst_contsub_halpha',
+                f'{self.galaxy}_hst_ha_err.fits': 'hst_contsub_halpha_err',
+                f'{self.galaxy}_hst_ha_as2.fits': 'hst_contsub_halpha_as',
+                f'{self.galaxy}_hst_ha_err_as2.fits': 'hst_contsub_halpha_err_as',
+                f'{self.galaxy}_muse_ha_as2.fits': 'muse_halpha_as',
+                f'{self.galaxy}_muse_contsub_ha_as2.fits': 'muse_contsub_halpha_as',
+            }
+
+        elif save_nomuse:
+            save_map = {
+                f'{self.galaxy}_hst_contsub.fits': 'hst_contsub',
+                f'{self.galaxy}_hst_contsub_err.fits': 'hst_contsub_err',
+            }
 
         # Iterate and save files
         for filename, hdu_key in save_map.items():
@@ -407,6 +451,8 @@ class PyHSTHAContSub:
         self.subtract_continuum_witherr_hst_bgcorr()
 
     def continuum_subtraction_pipeline_withMUSE(self):
+        
+        time_start = time.time()
 
         self.get_clean_paths()
         self.load_and_preprocess_errors()
@@ -424,11 +470,17 @@ class PyHSTHAContSub:
         self.generate_map_plots()
         self.clean_headers()
         self.convert_units_to_arcsec2()
-        self.save_hdu_files()
+        # self.convert_to_cdelt()
         self.save_fit_tables()
 
+        time_end = time.time()
+        time_elapsed = time_end - time_start
+        print(f"Run time: {time_elapsed/60} mins")
+
     def continuum_subtraction_pipeline_noMUSE(self):
-        
+
+        time_start = time.time()
+
         self.get_clean_paths()
         self.load_and_preprocess_errors()
         self.preprocess_hst_data()
@@ -440,4 +492,8 @@ class PyHSTHAContSub:
         self.generate_map_plots()
         self.clean_headers()
         self.convert_units_to_arcsec2()
-        self.save_hdu_files(nomuse=True)
+        # self.convert_to_cdelt()
+
+        time_end = time.time()
+        time_elapsed = time_end - time_start
+        print(f"Run time: {time_elapsed/60} mins")

@@ -56,8 +56,8 @@ def get_contsub(hdu_halpha, hdu_cont1, hdu_cont2,
     coef_cont1 = weight_cont1
     coef_cont2 = weight_cont2
 
-    data_cont1 = hdu_cont1.data
-    data_cont2 = hdu_cont2.data
+    data_cont1 = hdu_cont1.data.copy()
+    data_cont2 = hdu_cont2.data.copy()
 
     data_cont1[data_cont1<=0] = np.nan
     data_cont2[data_cont2<=0] = np.nan
@@ -65,10 +65,10 @@ def get_contsub(hdu_halpha, hdu_cont1, hdu_cont2,
     data_cont1 = np.log10(data_cont1)
     data_cont2 = np.log10(data_cont2)
 
-    hdu_cont1.data = data_cont1 * coef_cont1
-    hdu_cont2.data = data_cont2 * coef_cont2
+    data_cont1 = data_cont1 * coef_cont1
+    data_cont2 = data_cont2 * coef_cont2
 
-    data_cont = 10**(hdu_cont1.data + hdu_cont2.data)
+    data_cont = 10**(data_cont1 + data_cont2)
     data_cont[np.isnan(data_cont)] = 0
 
     hdu_halpha_cont = hdu_halpha.copy()
@@ -127,12 +127,13 @@ def get_contsub_err(hdu_halpha, hdu_cont1, hdu_cont2,
     wt_cont1 = abs(photplam_cont2 - photplam_halpha) / abs(photplam_cont1 - photplam_cont2)
     wt_cont2 = abs(photplam_cont1 - photplam_halpha) / abs(photplam_cont1 - photplam_cont2)
 
-    data_halpha = hdu_halpha.data
-    data_halphaerr = hdu_halpah_err.data
-    data_cont1 = hdu_cont1.data
-    data_cont2 = hdu_cont2.data
-    data_cont1err = hdu_cont1_err.data
-    data_cont2err = hdu_cont2_err.data
+    data_halpha = hdu_halpha.data.copy()
+    data_halphaerr = hdu_halpah_err.data.copy()
+    data_cont1 = hdu_cont1.data.copy()
+    data_cont2 = hdu_cont2.data.copy()
+    data_cont1err = hdu_cont1_err.data.copy()
+    data_cont2err = hdu_cont2_err.data.copy()
+
     data_cont1relerr = data_cont1err / data_cont1
     data_cont2relerr = data_cont2err / data_cont2
 

@@ -26,8 +26,8 @@ def get_bgmask(data, plot=False):
 
 def get_bgsub(hdu, box_size=(50, 50), filter_size=(25, 25), plot=False, want_bg=False):
 
-    data = hdu.data
-    hdr = hdu.header
+    data = hdu.data.copy()
+    hdr = hdu.header.copy()
 
     mask, rms = get_bgmask(data, plot=False)
 

@@ -67,6 +67,7 @@ def get_anchoring_offset(hdu1, hdu2, hdu3, hdu_stars, filter='', rootdir='./', a
     hdu1 = hdu1.copy()
     hdu2 = hdu2.copy()
     hdu3 = hdu3.copy()
+    
     data1 = hdu1.data.copy()
     data2 = hdu2.data.copy()
     data3 = hdu3.data.copy()
@@ -188,6 +189,7 @@ def get_anchoring_slope(hdu1, hdu2, hdu3, hdu_stars, filter='', rootdir='./', ap
     hdu1 = hdu1.copy()
     hdu2 = hdu2.copy()
     hdu3 = hdu3.copy()
+
     data1 = hdu1.data.copy()
     data2 = hdu2.data.copy()
     data3 = hdu3.data.copy()
