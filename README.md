@@ -4,7 +4,7 @@
 
 The reduction_phangs_hst repository provides tools and pipelines for reducing and analyzing Hubble Space Telescope (HST) observations as part of the PHANGS-HST project. It includes workflows for continuum subtraction, extinction correction, and emission line analysis of HST narrowband observations, with optional integration of MUSE data for calibration.
 
-See Chandar et al. 2024 paper for more details. 
+See Chandar et al. 2025 paper for more details. 
 
 Features
 *	Continuum Subtraction
@@ -230,7 +230,16 @@ Contributions are welcome! If you find a bug, have a question, or want to propos
 
 ## License
 
-This project is licensed under the MIT License.
+Shield: [![CC BY 4.0][cc-by-shield]][cc-by]
+
+This work is licensed under a
+[Creative Commons Attribution 4.0 International License][cc-by].
+
+[![CC BY 4.0][cc-by-image]][cc-by]
+
+[cc-by]: http://creativecommons.org/licenses/by/4.0/
+[cc-by-image]: https://i.creativecommons.org/l/by/4.0/88x31.png
+[cc-by-shield]: https://img.shields.io/badge/License-CC%20BY%204.0-lightgrey.svg
 
 ## Contact
 
