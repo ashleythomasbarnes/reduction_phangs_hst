@@ -152,8 +152,8 @@ def get_covmask(hdu_hst_f555w, hdu_hst_f65Xn, hdu_hst_f814w):
     mask = ~(np.isnan(hdu_hst_f65Xn.data) | np.isnan(hdu_hst_f555w.data) | np.isnan(hdu_hst_f814w.data))
 
     mask = mask*1
-    # mask_close = binary_closing(mask, structure=np.ones((10,10)), iterations=5) #Doesn't work well... 
-    mask_close = binary_fill_holes(mask, structure=np.ones((3,3))) #Better for filling holes in the mask with nans... 
+    mask_close = binary_closing(mask, structure=np.ones((10,10)), iterations=5) #
+    # mask_close = binary_fill_holes(mask, structure=np.ones((3,3))) #Better for filling holes in the mask with nans -- not fully tested...
 
     hdu_hst_f555w.data[~mask_close] = np.nan
     hdu_hst_f65Xn.data[~mask_close] = np.nan
