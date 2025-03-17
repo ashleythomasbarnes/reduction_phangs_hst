@@ -71,7 +71,8 @@ def get_regrid(hdu_input, hdu_template, output_filename=None, conserve_flux=True
 
     keys = ['NAXIS', 'NAXIS1', 'NAXIS2', 'CRPIX1', 'CRPIX2', 'CRVAL1', 'CRVAL2', 'CD1_1', 'CD1_2', 'CD2_1', 'CD2_2']
     for key in keys: 
-        header_input[key] = header_template[key]
+        if key in header_template.keys():
+            header_input[key] = header_template[key]
     hdu_output = fits.PrimaryHDU(data_output, header_input)
 
     if conserve_flux:
